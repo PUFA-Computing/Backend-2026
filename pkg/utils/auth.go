@@ -6,7 +6,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"net/http"
+	"os"
 )
+
+// SkipRedisTokenValidation allows bypassing Redis token validation
+var SkipRedisTokenValidation = os.Getenv("SKIP_REDIS_TOKEN_VALIDATION") == "true"
 
 func GetUserIDFromContext(c *gin.Context) (uuid.UUID, error) {
 	userIDRaw, _ := c.Get("userID")
@@ -58,30 +62,34 @@ func ValidateToken(tokenString, secretKey string) (*CustomClaims, error) {
 	}
 
 	if claims, ok := token.Claims.(*CustomClaims); ok && token.Valid {
-		storedToken, err := RetrieveTokenFromRedis(claims.UserID)
-		if err != nil {
-			return nil, &CustomError{
-				ErrorResponse: ErrorResponse{
-					Errors: []ErrorDetail{
-						{
-							Status:  http.StatusInternalServerError,
-							Message: "Cannot retrieve token from redis",
+		// Skip Redis validation if explicitly disabled
+		if !SkipRedisTokenValidation {
+			storedToken, err := RetrieveTokenFromRedis(claims.UserID)
+			if err != nil {
+				return nil, &CustomError{
+					ErrorResponse: ErrorResponse{
+						Errors: []ErrorDetail{
+							{
+								Status:  http.StatusInternalServerError,
+								Message: "Cannot retrieve token from redis",
+							},
 						},
 					},
-				},
+				}
 			}
-		}
 
-		if tokenString != storedToken {
-			return nil, &CustomError{
-				ErrorResponse: ErrorResponse{
-					Errors: []ErrorDetail{
-						{
-							Status:  http.StatusUnauthorized,
-							Message: "Token mismatch",
+			// Skip token comparison if Redis is disabled or token is not found
+			if storedToken != "redis-disabled" && tokenString != storedToken {
+				return nil, &CustomError{
+					ErrorResponse: ErrorResponse{
+						Errors: []ErrorDetail{
+							{
+								Status:  http.StatusUnauthorized,
+								Message: "Token mismatch",
+							},
 						},
 					},
-				},
+				}
 			}
 		}
 
