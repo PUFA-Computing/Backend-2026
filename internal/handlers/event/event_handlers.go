@@ -8,11 +8,13 @@ import (
 	"Backend/pkg/utils"
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"io"
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 )
 
 type Handlers struct {
@@ -90,7 +92,7 @@ func (h *Handlers) CreateEvent(c *gin.Context) {
 	}
 
 	// Upload image to R2 storage
-	err = h.R2Service.UploadFileToR2(context.Background(), "event", newEvent.Slug, optimizedImageBytes)
+	err = h.R2Service.UploadFileToR2(context.Background(), "event", newEvent.Slug, optimizedImageBytes, "image/jpeg")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
 		return
@@ -200,7 +202,7 @@ func (h *Handlers) EditEvent(c *gin.Context) {
 		
 		// Upload new image
 		log.Println("Uploading image to R2 with slug:", updatedEvent.Slug)
-		err = h.R2Service.UploadFileToR2(context.Background(), "event", updatedEvent.Slug, optimizedImageBytes)
+		err = h.R2Service.UploadFileToR2(context.Background(), "event", updatedEvent.Slug, optimizedImageBytes, "image/jpeg")
 		if err != nil {
 			log.Println("Error uploading to R2:", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
@@ -375,16 +377,6 @@ func (h *Handlers) RegisterForEvent(c *gin.Context) {
 		return
 	}
 
-	var eventRegistration models.EventRegistration
-	if err := c.BindJSON(&eventRegistration); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": []string{err.Error()}})
-		return
-	}
-
-	log.Println(eventRegistration.AdditionalNotes)
-
-	log.Println("Register for Event Middle")
-
 	eventIDStr := c.Param("eventID")
 	eventID, err := strconv.Atoi(eventIDStr)
 	if err != nil {
@@ -392,9 +384,122 @@ func (h *Handlers) RegisterForEvent(c *gin.Context) {
 		return
 	}
 
+	log.Println("Register for Event Middle")
+
+	// Handle multipart form for file upload
+	form, err := c.MultipartForm()
+	if err != nil {
+		// If not multipart form, try to bind JSON for backward compatibility
+		var eventRegistration models.EventRegistration
+		if err := c.BindJSON(&eventRegistration); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": []string{"Invalid request format"}})
+			return
+		}
+		
+		log.Println(eventRegistration.AdditionalNotes)
+		
+		if err := h.EventService.RegisterForEvent(userID, eventID, eventRegistration.AdditionalNotes, ""); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
+			return
+		}
+		
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"message": "Registered Successfully",
+			"relationships": gin.H{
+				"user": gin.H{
+					"data": gin.H{
+						"id": userID,
+					},
+				},
+				"event": gin.H{
+					"data": gin.H{
+						"id": eventID,
+					},
+				},
+			},
+		})
+		return
+	}
+
+	// Get additional notes from form
+	additionalNotes := ""
+	if len(form.Value["additional_notes"]) > 0 {
+		additionalNotes = form.Value["additional_notes"][0]
+	}
+	log.Println(additionalNotes)
+
+	// Handle file upload
+	var filePath string
+	files := form.File["file"]
+	if len(files) > 0 {
+		file, err := files[0].Open()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{"Error opening uploaded file"}})
+			return
+		}
+		defer file.Close()
+
+		// Read file bytes
+		fileBytes, err := io.ReadAll(file)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{"Error reading uploaded file"}})
+			return
+		}
+
+		// Get file content type
+		fileType := files[0].Header.Get("Content-Type")
+		log.Printf("Uploading file with content type: %s", fileType)
+
+		// Validate file type
+		allowedTypes := []string{"application/pdf", "image/jpeg", "image/jpg", "image/png"}
+		validType := false
+		for _, t := range allowedTypes {
+			if t == fileType {
+				validType = true
+				break
+			}
+		}
+
+		if !validType {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": []string{"Invalid file type. Only PDF and images (JPEG, PNG) are allowed"}})
+			return
+		}
+
+		// Generate unique filename with timestamp to prevent collisions
+		timestamp := time.Now().UnixNano() / int64(time.Millisecond)
+		filename := fmt.Sprintf("event_reg_%d_%s_%d", eventID, userID.String(), timestamp)
+
+		// Log file details before upload
+		log.Printf("Uploading file for event registration - Type: %s, Size: %d bytes", fileType, len(fileBytes))
+
+		// Upload to R2 with file type
+		err = h.R2Service.UploadFileToR2(context.Background(), "event_registrations", filename, fileBytes, fileType)
+		if err != nil {
+			log.Printf("Error uploading file to R2: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{"Error uploading file"}})
+			return
+		}
+
+		// Log successful upload
+		log.Printf("File successfully uploaded to R2 for event registration")
+
+		// Get file path
+		var err2 error
+		filePath, err2 = h.R2Service.GetFileR2("event_registrations", filename)
+		if err2 != nil {
+			log.Printf("Error getting file path: %v", err2)
+			// Continue anyway, we'll just store a blank file path
+			filePath = ""
+		}
+		log.Printf("File path for registration: %s", filePath)
+	}
+
 	log.Println("Register for Event Middle 2")
 
-	if err := h.EventService.RegisterForEvent(userID, eventID, eventRegistration.AdditionalNotes); err != nil {
+	log.Printf("Attempting to register user %s for event %d with filePath: %s", userID.String(), eventID, filePath)
+	if err := h.EventService.RegisterForEvent(userID, eventID, additionalNotes, filePath); err != nil {
+		log.Printf("Error registering for event: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
 		return
 	}

@@ -86,8 +86,8 @@ func (es *EventService) ListEvents(queryParams map[string]string) ([]*models.Eve
 }
 
 // RegisterForEvent registers a user for an event
-func (es *EventService) RegisterForEvent(userID uuid.UUID, eventID int, additionalNotes string) error {
-	if err := app.RegisterForEvent(userID, eventID, additionalNotes); err != nil {
+func (es *EventService) RegisterForEvent(userID uuid.UUID, eventID int, additionalNotes string, filePath string) error {
+	if err := app.RegisterForEvent(userID, eventID, additionalNotes, filePath); err != nil {
 		return err
 	}
 

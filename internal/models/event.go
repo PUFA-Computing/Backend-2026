@@ -30,4 +30,5 @@ type EventRegistration struct {
 	UserID           uuid.UUID `json:"user_id"`
 	RegistrationDate time.Time `json:"registration_date"`
 	AdditionalNotes  string    `json:"additional_notes"`
+	FilePath         string    `json:"file_path"`
 }

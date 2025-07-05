@@ -367,7 +367,7 @@ func (h *Handlers) UploadProfilePicture(c *gin.Context) {
 	}
 
 	// Upload image to R2 storage
-	err = h.R2Service.UploadFileToR2(context.Background(), "users", user.ID.String(), optimizedImageBytes)
+	err = h.R2Service.UploadFileToR2(context.Background(), "users", user.ID.String(), optimizedImageBytes, "image/jpeg")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
 		return
@@ -421,7 +421,7 @@ func (h *Handlers) UploadStudentID(c *gin.Context) {
 	}
 
 	// Upload image to R2 storage
-	err = h.R2Service.UploadFileToR2(context.Background(), "users", "student_id_"+userID.String(), optimizedImageBytes)
+	err = h.R2Service.UploadFileToR2(context.Background(), "users", "student_id_"+userID.String(), optimizedImageBytes, "image/jpeg")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
 		return

@@ -30,6 +30,7 @@ type User struct {
 	InstitutionName        *string    `json:"institution_name"`
 	Gender                 string     `json:"gender"`
 	AdditionalNotes        *string    `json:"additional_notes"`
+	FilePath               *string    `json:"file_path"`
 	TwoFAEnabled           bool       `json:"twofa_enabled"`
 	TwoFAImage             *string    `json:"twofa_image"`
 	TwoFASecret            *string    `json:"twofa_secret"`

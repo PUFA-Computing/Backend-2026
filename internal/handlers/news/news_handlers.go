@@ -61,43 +61,98 @@ func (h *Handler) CreateNews(c *gin.Context) {
 		newNews.PublishDate = time.Now()
 	}
 
-	file, _, err := c.Request.FormFile("file")
-	if err != nil {
+	// Check if a file was uploaded
+	file, fileHeader, err := c.Request.FormFile("file")
+	
+	// If error is not because of missing file, return error
+	if err != nil && err != http.ErrMissingFile {
+		
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": []string{err.Error()}})
+		
 		return
+	
 	}
 
-	optimizedImage, err := utils.OptimizeImage(file, 2800, 1080)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
-		return
-	}
-
-	optimizedImageBytes, err := io.ReadAll(optimizedImage)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
-		return
-	}
-
+	
 	// Choose storage service to upload image to (AWS or R2)
 	upload := utils.ChooseStorageService()
 
-	if upload == utils.R2Service {
-		err = h.R2Service.UploadFileToR2(context.Background(), "news", newNews.Slug, optimizedImageBytes)
+	
+	
+	// Check if file was uploaded
+	if err == nil && fileHeader != nil {
+		
+		// Process the uploaded image
+		optimizedImage, err := utils.OptimizeImage(file, 2800, 1080)
+		
 		if err != nil {
+			
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
+			
 			return
+		
 		}
 
-		newNews.Thumbnail, _ = h.R2Service.GetFileR2("news", newNews.Slug)
+		
+		optimizedImageBytes, err := io.ReadAll(optimizedImage)
+		
+		if err != nil {
+			
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
+			
+			return
+		
+		}
+
+		
+		
+		if upload == utils.R2Service {
+			
+			err = h.R2Service.UploadFileToR2(context.Background(), "news", newNews.Slug, optimizedImageBytes, "image/jpeg")
+			
+			if err != nil {
+				
+				c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
+				
+				return
+			
+			}
+
+			
+			newNews.Thumbnail, _ = h.R2Service.GetFileR2("news", newNews.Slug)
+		
+		} else {
+			
+			err = h.AWSService.UploadFileToAWS(context.Background(), "news", newNews.Slug, optimizedImageBytes)
+			
+			if err != nil {
+				
+				c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
+				
+				return
+			
+			}
+
+			
+			newNews.Thumbnail, _ = h.AWSService.GetFileAWS("news", newNews.Slug)
+		
+		}
+	
 	} else {
-		err = h.AWSService.UploadFileToAWS(context.Background(), "news", newNews.Slug, optimizedImageBytes)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
-			return
+		
+		// No image uploaded, use default image
+		if upload == utils.R2Service {
+			
+			// Use the default news thumbnail from R2
+			newNews.Thumbnail, _ = h.R2Service.GetFileR2("default", "news-thumbnail")
+		
+		} else {
+			
+			// Use the default news thumbnail from AWS
+			newNews.Thumbnail, _ = h.AWSService.GetFileAWS("default", "news-thumbnail")
+		
 		}
-
-		newNews.Thumbnail, _ = h.AWSService.GetFileAWS("news", newNews.Slug)
+	
 	}
 
 	if err := h.NewsService.CreateNews(&newNews); err != nil {
@@ -229,7 +284,7 @@ func (h *Handler) EditNews(c *gin.Context) {
 
 		// Upload image to R2 storage with the correct slug
 		log.Printf("Uploading image to R2 with slug: %s", updatedNews.Slug)
-		err = h.R2Service.UploadFileToR2(context.Background(), "news", updatedNews.Slug, optimizedImageBytes)
+		err = h.R2Service.UploadFileToR2(context.Background(), "news", updatedNews.Slug, optimizedImageBytes, "image/jpeg")
 		if err != nil {
 			log.Printf("Error uploading to R2: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})

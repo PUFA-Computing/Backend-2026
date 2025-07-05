@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -109,18 +110,38 @@ func (s *S3Service) UploadFileToAWS(ctx context.Context, directory, key string, 
 	return nil
 }
 
-func (s *S3Service) UploadFileToR2(ctx context.Context, directory, key string, file []byte) error {
-	// Format the key as directory/key.jpg
-	key = directory + "/" + key + ".jpg"
+func (s *S3Service) UploadFileToR2(ctx context.Context, directory, key string, file []byte, fileType string) error {
+	// Determine file extension and content type based on fileType
+	var fileExt string
+	var contentType string
+	
+	switch fileType {
+	case "application/pdf":
+		fileExt = ".pdf"
+		contentType = "application/pdf"
+	case "image/jpeg", "image/jpg":
+		fileExt = ".jpg"
+		contentType = "image/jpeg"
+	case "image/png":
+		fileExt = ".png"
+		contentType = "image/png"
+	default:
+		// Default to jpg if type is unknown
+		fileExt = ".jpg"
+		contentType = "image/jpeg"
+	}
+	
+	// Format the key as directory/key.extension
+	key = directory + "/" + key + fileExt
 	
 	// Log the bucket and key for debugging
-	fmt.Printf("Uploading to R2 - Bucket: %s, Key: %s\n", s.bucket, key)
+	fmt.Printf("Uploading to R2 - Bucket: %s, Key: %s, Type: %s\n", s.bucket, key, contentType)
 	
 	input := &s3.PutObjectInput{
 		Bucket:      aws.String(s.bucket),
 		Key:         aws.String(key),
 		Body:        bytes.NewReader(file),
-		ContentType: aws.String("image/jpeg"),
+		ContentType: aws.String(contentType),
 		// Public read access is handled by bucket policy in Cloudflare R2
 	}
 
@@ -172,8 +193,38 @@ func (s *S3Service) GetFileAWS(directory, slug string) (string, error) {
 }
 
 func (s *S3Service) GetFileR2(directory, slug string) (string, error) {
+	// Try to determine if this is a special case for event registrations
+	// which could be PDF, JPEG, or PNG
+	var fileExt string
+	if strings.HasPrefix(directory, "event_registrations") {
+		// For event registrations, we need to check all possible extensions
+		extensions := []string{".pdf", ".jpg", ".png"}
+		for _, ext := range extensions {
+			testKey := directory + "/" + slug + ext
+			// Check if file exists with this extension
+			input := &s3.HeadObjectInput{
+				Bucket: aws.String(s.bucket),
+				Key:    aws.String(testKey),
+			}
+			_, err := s.s3Client.HeadObject(context.Background(), input)
+			if err == nil {
+				// File exists with this extension
+				fileExt = ext
+				break
+			}
+		}
+		
+		// If we couldn't determine the extension, default to .jpg
+		if fileExt == "" {
+			fileExt = ".jpg"
+		}
+	} else {
+		// For other cases, default to .jpg as before
+		fileExt = ".jpg"
+	}
+	
 	// Format the key as it's stored in R2
-	key := directory + "/" + slug + ".jpg"
+	key := directory + "/" + slug + fileExt
 	
 	// For Cloudflare R2 with custom domain
 	// Add debugging to see what URL is being generated
