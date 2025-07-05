@@ -32,8 +32,8 @@ type CustomClaims struct {
 }
 
 func StoreTokenInRedis(userID uuid.UUID, token string) error {
-	// If Redis client is nil, just return nil (Redis is disabled)
-	if Rdb == nil {
+	// If Redis is not enabled or client is nil, just return nil (Redis is disabled)
+	if !RedisEnabled || Rdb == nil {
 		log.Println("Redis is disabled, skipping token storage")
 		return nil
 	}
@@ -51,8 +51,8 @@ func StoreTokenInRedis(userID uuid.UUID, token string) error {
 }
 
 func RetrieveTokenFromRedis(userID uuid.UUID) (string, error) {
-		// If Redis client is nil, return a dummy token (Redis is disabled)
-	if Rdb == nil {
+	// If Redis is not enabled or client is nil, return a dummy token (Redis is disabled)
+	if !RedisEnabled || Rdb == nil {
 		log.Println("Redis is disabled, returning dummy token for validation")
 		// Return a non-empty string to allow token validation without Redis
 		return "redis-disabled", nil
@@ -64,7 +64,7 @@ func RetrieveTokenFromRedis(userID uuid.UUID) (string, error) {
 		log.Printf("Error retrieving token from Redis: %v", err)
 		// Return a dummy token instead of error to allow validation without Redis
 		return "redis-disabled", nil
-}
+	}
 
 	return token, nil
 }
