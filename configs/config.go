@@ -44,6 +44,11 @@ type Config struct {
 	SendGridSender     string
 	SendGridSenderName string
 
+	// Brevo settings
+	BrevoAPIKey      string
+	BrevoSenderEmail string
+	BrevoSenderName  string
+
 	GithubAccessToken string
 	HunterApiKey      string
 
@@ -51,7 +56,7 @@ type Config struct {
 }
 
 func LoadConfig() *Config {
-    env := os.Getenv("ENV")
+	env := os.Getenv("ENV")
 
 	var baseURl string
 
@@ -66,42 +71,46 @@ func LoadConfig() *Config {
 		baseURl = "https://compsci.president.ac.id"
 	}
 
-    cfg := &Config{
-        DBHost:                os.Getenv("DB_HOST"),
-        DBPort:                os.Getenv("DB_PORT"),
-        DBUser:                os.Getenv("DB_USER"),
-        DBPassword:            os.Getenv("DB_PASSWORD"),
-        DBName:                os.Getenv("DB_NAME"),
-        RedisURL:              os.Getenv("REDIS_URL"),
-        RedisPass:             os.Getenv("REDIS_PASS"),
-        ApiPort:               os.Getenv("API_PORT"),
-        JWTSecretKey:          os.Getenv("JWT_SECRET_KEY"),
-        CloudflareAccountId:   os.Getenv("CLOUDFLARE_ACCOUNT_ID"),
-        CloudflareR2AccessId:  os.Getenv("CLOUDFLARE_R2_ACCESS_ID"),
-        CloudflareR2AccessKey: os.Getenv("CLOUDFLARE_R2_ACCESS_KEY"),
-        S3Endpoint:            os.Getenv("S3_ENDPOINT"),
-        S3UsePathStyle:        os.Getenv("S3_USE_PATH_STYLE") == "true",
-        AWSAccessKeyId:        os.Getenv("AWS_ACCESS_KEY_ID"),
-        AWSSecretAccessKey:    os.Getenv("AWS_SECRET_ACCESS_KEY"),
-        AWSRegion:             os.Getenv("AWS_REGION"),
-        S3Bucket:              os.Getenv("S3_BUCKET"),
-        // Email service toggle
-        UseSmtp:               os.Getenv("USE_SMTP") == "true",
-        // Legacy SMTP settings
-        SMTPHost:              os.Getenv("SMTP_HOST"),
-        SMTPPort:              os.Getenv("SMTP_PORT"),
-        SMTPUsername:          os.Getenv("SMTP_USERNAME"),
-        SMTPPassword:          os.Getenv("SMTP_PASSWORD"),
-        SenderEmail:           os.Getenv("SMTP_SENDER_EMAIL"),
-        // SendGrid settings
-        SendGridAPIKey:        os.Getenv("SENDGRID_API_KEY"),
-        SendGridSender:        os.Getenv("SENDGRID_SENDER_EMAIL"),
-        SendGridSenderName:    os.Getenv("SENDGRID_SENDER_NAME"),
-        BaseURL:               baseURl,
-        GithubAccessToken:     os.Getenv("GH_ACCESS_TOKEN"),
-        HunterApiKey:          os.Getenv("HUNTER_API_KEY"),
-    }
+	cfg := &Config{
+		DBHost:                os.Getenv("DB_HOST"),
+		DBPort:                os.Getenv("DB_PORT"),
+		DBUser:                os.Getenv("DB_USER"),
+		DBPassword:            os.Getenv("DB_PASSWORD"),
+		DBName:                os.Getenv("DB_NAME"),
+		RedisURL:              os.Getenv("REDIS_URL"),
+		RedisPass:             os.Getenv("REDIS_PASS"),
+		ApiPort:               os.Getenv("API_PORT"),
+		JWTSecretKey:          os.Getenv("JWT_SECRET_KEY"),
+		CloudflareAccountId:   os.Getenv("CLOUDFLARE_ACCOUNT_ID"),
+		CloudflareR2AccessId:  os.Getenv("CLOUDFLARE_R2_ACCESS_ID"),
+		CloudflareR2AccessKey: os.Getenv("CLOUDFLARE_R2_ACCESS_KEY"),
+		S3Endpoint:            os.Getenv("S3_ENDPOINT"),
+		S3UsePathStyle:        os.Getenv("S3_USE_PATH_STYLE") == "true",
+		AWSAccessKeyId:        os.Getenv("AWS_ACCESS_KEY_ID"),
+		AWSSecretAccessKey:    os.Getenv("AWS_SECRET_ACCESS_KEY"),
+		AWSRegion:             os.Getenv("AWS_REGION"),
+		S3Bucket:              os.Getenv("S3_BUCKET"),
+		// Email service toggle
+		UseSmtp: os.Getenv("USE_SMTP") == "true",
+		// Legacy SMTP settings
+		SMTPHost:     os.Getenv("SMTP_HOST"),
+		SMTPPort:     os.Getenv("SMTP_PORT"),
+		SMTPUsername: os.Getenv("SMTP_USERNAME"),
+		SMTPPassword: os.Getenv("SMTP_PASSWORD"),
+		SenderEmail:  os.Getenv("SMTP_SENDER_EMAIL"),
+		// SendGrid settings
+		SendGridAPIKey:     os.Getenv("SENDGRID_API_KEY"),
+		SendGridSender:     os.Getenv("SENDGRID_SENDER_EMAIL"),
+		SendGridSenderName: os.Getenv("SENDGRID_SENDER_NAME"),
+		// Brevo settings
+		BrevoAPIKey:       os.Getenv("BREVO_API_KEY"),
+		BrevoSenderEmail:  os.Getenv("BREVO_SENDER_EMAIL"),
+		BrevoSenderName:   os.Getenv("BREVO_SENDER_NAME"),
+		BaseURL:           baseURl,
+		GithubAccessToken: os.Getenv("GH_ACCESS_TOKEN"),
+		HunterApiKey:      os.Getenv("HUNTER_API_KEY"),
+	}
 
-    fmt.Printf("Loaded Config: %+v\n", cfg)
-    return cfg
+	fmt.Printf("Loaded Config: %+v\n", cfg)
+	return cfg
 }

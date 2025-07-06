@@ -121,31 +121,30 @@ func SetupRoutes() *gin.Engine {
 		)
 		log.Println("Using SMTP email service")
 	} else {
-		// Use SendGrid service
-		sendGridAPIKey := config.SendGridAPIKey
-		if sendGridAPIKey == "" {
-			log.Println("WARNING: SendGrid API key not found in environment variables")
+
+		brevoAPIKey := config.BrevoAPIKey
+		if brevoAPIKey == "" {
+			log.Println("Warning: Brevo API key not provided, email functionality will be limited")
 		}
 
-		sendGridSender := config.SendGridSender
-		if sendGridSender == "" {
-			// Fallback to legacy sender email if available
-			sendGridSender = config.SenderEmail
-			log.Println("Using legacy sender email for SendGrid")
+		brevoSenderEmail := config.BrevoSenderEmail
+		if brevoSenderEmail == "" {
+			brevoSenderEmail = "noreply@pufacomputing.ac.id" // Default sender email
+			log.Println("Using default sender email:", brevoSenderEmail)
 		}
 
-		sendGridSenderName := config.SendGridSenderName
-		if sendGridSenderName == "" {
-			sendGridSenderName = "PUFA Computer Science"
-			log.Println("Using default sender name: PUFA Computer Science")
+		brevoSenderName := config.BrevoSenderName
+		if brevoSenderName == "" {
+			brevoSenderName = "PUFA Computer Science"
+			log.Println("Using default sender name:", brevoSenderName)
 		}
 
-		EmailService = services.NewSendGridService(
-			sendGridAPIKey,
-			sendGridSender,
-			sendGridSenderName,
+		EmailService = services.NewBrevoService(
+			brevoAPIKey,
+			brevoSenderEmail,
+			brevoSenderName,
 		)
-		log.Println("Using SendGrid email service")
+		log.Println("Using Brevo email service")
 	}
 	VersionService := services.NewVersionService(configs.LoadConfig().GithubAccessToken)
 
