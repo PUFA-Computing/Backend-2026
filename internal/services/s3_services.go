@@ -114,7 +114,7 @@ func (s *S3Service) UploadFileToR2(ctx context.Context, directory, key string, f
 	// Determine file extension and content type based on fileType
 	var fileExt string
 	var contentType string
-	
+
 	switch fileType {
 	case "application/pdf":
 		fileExt = ".pdf"
@@ -125,18 +125,21 @@ func (s *S3Service) UploadFileToR2(ctx context.Context, directory, key string, f
 	case "image/png":
 		fileExt = ".png"
 		contentType = "image/png"
+	case "application/zip", "application/x-zip-compressed":
+		fileExt = ".zip"
+		contentType = "application/zip"
 	default:
 		// Default to jpg if type is unknown
 		fileExt = ".jpg"
 		contentType = "image/jpeg"
 	}
-	
+
 	// Format the key as directory/key.extension
 	key = directory + "/" + key + fileExt
-	
+
 	// Log the bucket and key for debugging
 	fmt.Printf("Uploading to R2 - Bucket: %s, Key: %s, Type: %s\n", s.bucket, key, contentType)
-	
+
 	input := &s3.PutObjectInput{
 		Bucket:      aws.String(s.bucket),
 		Key:         aws.String(key),
@@ -194,11 +197,11 @@ func (s *S3Service) GetFileAWS(directory, slug string) (string, error) {
 
 func (s *S3Service) GetFileR2(directory, slug string) (string, error) {
 	// Try to determine if this is a special case for event registrations
-	// which could be PDF, JPEG, or PNG
+	// which could be PDF, JPEG, PNG, or ZIP
 	var fileExt string
 	if strings.HasPrefix(directory, "event_registrations") {
 		// For event registrations, we need to check all possible extensions
-		extensions := []string{".pdf", ".jpg", ".png"}
+		extensions := []string{".pdf", ".jpg", ".png", ".zip"}
 		for _, ext := range extensions {
 			testKey := directory + "/" + slug + ext
 			// Check if file exists with this extension
@@ -213,7 +216,7 @@ func (s *S3Service) GetFileR2(directory, slug string) (string, error) {
 				break
 			}
 		}
-		
+
 		// If we couldn't determine the extension, default to .jpg
 		if fileExt == "" {
 			fileExt = ".jpg"
@@ -222,17 +225,17 @@ func (s *S3Service) GetFileR2(directory, slug string) (string, error) {
 		// For other cases, default to .jpg as before
 		fileExt = ".jpg"
 	}
-	
+
 	// Format the key as it's stored in R2
 	key := directory + "/" + slug + fileExt
-	
+
 	// For Cloudflare R2 with custom domain
 	// Add debugging to see what URL is being generated
 	fmt.Printf("Generating R2 URL for key: %s\n", key)
-	
+
 	// Add a timestamp to prevent browser caching
 	timestamp := time.Now().UnixNano() / int64(time.Millisecond)
-	
+
 	// Use the public URL format that works with your Cloudflare R2 setup
 	// Add a cache-busting parameter to force browser to reload the image
 	url := fmt.Sprintf("https://pufacompsci.my.id/%s?t=%d", key, timestamp)

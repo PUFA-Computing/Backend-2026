@@ -9,12 +9,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"io"
 	"log"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 type Handlers struct {
@@ -176,7 +177,7 @@ func (h *Handlers) EditEvent(c *gin.Context) {
 
 	// Try to get file from form, but don't require it
 	file, fileHeader, err := c.Request.FormFile("file")
-	
+
 	// Check if a valid file was uploaded
 	if err == nil && fileHeader != nil && fileHeader.Size > 0 && fileHeader.Filename != "empty.txt" {
 		// File was uploaded, process it
@@ -199,7 +200,7 @@ func (h *Handlers) EditEvent(c *gin.Context) {
 		if updatedEvent.Slug == "" {
 			updatedEvent.Slug = existingEvent.Slug
 		}
-		
+
 		// Upload new image
 		log.Println("Uploading image to R2 with slug:", updatedEvent.Slug)
 		err = h.R2Service.UploadFileToR2(context.Background(), "event", updatedEvent.Slug, optimizedImageBytes, "image/jpeg")
@@ -216,7 +217,7 @@ func (h *Handlers) EditEvent(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
 			return
 		}
-		
+
 		log.Println("New thumbnail URL:", thumbnailURL)
 		updatedEvent.Thumbnail = thumbnailURL
 	} else {
@@ -395,14 +396,14 @@ func (h *Handlers) RegisterForEvent(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": []string{"Invalid request format"}})
 			return
 		}
-		
+
 		log.Println(eventRegistration.AdditionalNotes)
-		
+
 		if err := h.EventService.RegisterForEvent(userID, eventID, eventRegistration.AdditionalNotes, ""); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
 			return
 		}
-		
+
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
 			"message": "Registered Successfully",
@@ -452,7 +453,7 @@ func (h *Handlers) RegisterForEvent(c *gin.Context) {
 		log.Printf("Uploading file with content type: %s", fileType)
 
 		// Validate file type
-		allowedTypes := []string{"application/pdf", "image/jpeg", "image/jpg", "image/png"}
+		allowedTypes := []string{"application/pdf", "image/jpeg", "image/jpg", "image/png", "application/zip", "application/x-zip-compressed"}
 		validType := false
 		for _, t := range allowedTypes {
 			if t == fileType {
@@ -462,7 +463,7 @@ func (h *Handlers) RegisterForEvent(c *gin.Context) {
 		}
 
 		if !validType {
-			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": []string{"Invalid file type. Only PDF and images (JPEG, PNG) are allowed"}})
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": []string{"Invalid file type. Only PDF, ZIP, and images (JPEG, PNG) are allowed"}})
 			return
 		}
 
