@@ -13,6 +13,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -430,12 +431,15 @@ func (h *Handlers) RegisterForEvent(c *gin.Context) {
 	}
 	log.Println(additionalNotes)
 
-	// Handle file upload
-	var filePath string
-	files := form.File["file"]
-	if len(files) > 0 {
-		file, err := files[0].Open()
+	// Handle multiple file uploads
+	var filePaths []string
+	files := form.File["files"]
+
+	// Process each uploaded file
+	for i, fileHeader := range files {
+		file, err := fileHeader.Open()
 		if err != nil {
+			log.Printf("Error opening uploaded file %d: %v", i, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{"Error opening uploaded file"}})
 			return
 		}
@@ -444,13 +448,14 @@ func (h *Handlers) RegisterForEvent(c *gin.Context) {
 		// Read file bytes
 		fileBytes, err := io.ReadAll(file)
 		if err != nil {
+			log.Printf("Error reading uploaded file %d: %v", i, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{"Error reading uploaded file"}})
 			return
 		}
 
 		// Get file content type
-		fileType := files[0].Header.Get("Content-Type")
-		log.Printf("Uploading file with content type: %s", fileType)
+		fileType := fileHeader.Header.Get("Content-Type")
+		log.Printf("Uploading file %d with content type: %s", i, fileType)
 
 		// Validate file type
 		allowedTypes := []string{"application/pdf", "image/jpeg", "image/jpg", "image/png", "application/zip", "application/x-zip-compressed"}
@@ -463,43 +468,47 @@ func (h *Handlers) RegisterForEvent(c *gin.Context) {
 		}
 
 		if !validType {
+			log.Printf("Invalid file type for file %d: %s", i, fileType)
 			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": []string{"Invalid file type. Only PDF, ZIP, and images (JPEG, PNG) are allowed"}})
 			return
 		}
 
-		// Generate unique filename with timestamp to prevent collisions
+		// Generate unique filename with timestamp and index to prevent collisions
 		timestamp := time.Now().UnixNano() / int64(time.Millisecond)
-		filename := fmt.Sprintf("event_reg_%d_%s_%d", eventID, userID.String(), timestamp)
+		filename := fmt.Sprintf("event_reg_%d_%s_%d_%d", eventID, userID.String(), timestamp, i)
 
 		// Log file details before upload
-		log.Printf("Uploading file for event registration - Type: %s, Size: %d bytes", fileType, len(fileBytes))
+		log.Printf("Uploading file %d for event registration - Type: %s, Size: %d bytes", i, fileType, len(fileBytes))
 
 		// Upload to R2 with file type
 		err = h.R2Service.UploadFileToR2(context.Background(), "event_registrations", filename, fileBytes, fileType)
 		if err != nil {
-			log.Printf("Error uploading file to R2: %v", err)
+			log.Printf("Error uploading file %d to R2: %v", i, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{"Error uploading file"}})
 			return
 		}
 
 		// Log successful upload
-		log.Printf("File successfully uploaded to R2 for event registration")
+		log.Printf("File %d successfully uploaded to R2 for event registration", i)
 
 		// Get file path
-		var err2 error
-		filePath, err2 = h.R2Service.GetFileR2("event_registrations", filename)
-		if err2 != nil {
-			log.Printf("Error getting file path: %v", err2)
+		filePath, err := h.R2Service.GetFileR2("event_registrations", filename)
+		if err != nil {
+			log.Printf("Error getting file path for file %d: %v", i, err)
 			// Continue anyway, we'll just store a blank file path
-			filePath = ""
+		} else {
+			log.Printf("File %d path for registration: %s", i, filePath)
+			filePaths = append(filePaths, filePath)
 		}
-		log.Printf("File path for registration: %s", filePath)
 	}
 
 	log.Println("Register for Event Middle 2")
 
-	log.Printf("Attempting to register user %s for event %d with filePath: %s", userID.String(), eventID, filePath)
-	if err := h.EventService.RegisterForEvent(userID, eventID, additionalNotes, filePath); err != nil {
+	// Join file paths with comma separator for storage
+	filePathsStr := strings.Join(filePaths, ",")
+	log.Printf("Attempting to register user %s for event %d with filePaths: %s", userID.String(), eventID, filePathsStr)
+
+	if err := h.EventService.RegisterForEvent(userID, eventID, additionalNotes, filePathsStr); err != nil {
 		log.Printf("Error registering for event: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
 		return

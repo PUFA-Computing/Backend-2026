@@ -1,8 +1,10 @@
 package models
 
 import (
-	"github.com/google/uuid"
+	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Event struct {
@@ -31,4 +33,27 @@ type EventRegistration struct {
 	RegistrationDate time.Time `json:"registration_date"`
 	AdditionalNotes  string    `json:"additional_notes"`
 	FilePath         string    `json:"file_path"`
+	FilePaths        []string  `json:"file_paths" gorm:"-"`
+}
+
+// ProcessFilePaths processes the comma-separated file paths and populates the FilePaths slice
+func (er *EventRegistration) ProcessFilePaths() {
+	if er.FilePath == "" {
+		er.FilePaths = []string{}
+		return
+	}
+
+	// Split the file paths by comma
+	paths := strings.Split(er.FilePath, ",")
+
+	// Trim spaces and filter out empty paths
+	var validPaths []string
+	for _, path := range paths {
+		trimmedPath := strings.TrimSpace(path)
+		if trimmedPath != "" {
+			validPaths = append(validPaths, trimmedPath)
+		}
+	}
+
+	er.FilePaths = validPaths
 }

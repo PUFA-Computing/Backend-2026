@@ -3,8 +3,9 @@ package services
 import (
 	"Backend/internal/database/app"
 	"Backend/internal/models"
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type EventService struct {
@@ -99,6 +100,19 @@ func (es *EventService) ListRegisteredUsers(eventID int) ([]*models.User, error)
 	users, err := app.ListRegisteredUsers(eventID)
 	if err != nil {
 		return nil, err
+	}
+
+	// Process file paths for each user
+	for _, user := range users {
+		if user != nil && user.FilePath != nil && *user.FilePath != "" {
+			// Create temporary EventRegistration to process file paths
+			tempReg := &models.EventRegistration{
+				FilePath: *user.FilePath,
+			}
+			tempReg.ProcessFilePaths()
+			// We could store the processed paths in a separate field if needed
+			// For now, we just process them but they'll be processed again in the frontend
+		}
 	}
 
 	return users, nil
