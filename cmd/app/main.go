@@ -10,7 +10,29 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	_ "Backend/docs" // Import generated docs
 )
+
+// @title PUFA Backend API
+// @version 1.0
+// @description Backend API for PUFA Computer Science with Candidates and Votes Management
+// @termsOfService https://compsci.president.ac.id/terms
+
+// @contact.name API Support
+// @contact.url https://compsci.president.ac.id/support
+// @contact.email support@pufacomputing.ac.id
+
+// @license.name MIT
+// @license.url https://opensource.org/licenses/MIT
+
+// @host localhost:8080
+// @BasePath /api/v1
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Type "Bearer" followed by a space and JWT token.
 
 func tryInitRedis() {
 	defer func() {

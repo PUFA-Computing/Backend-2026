@@ -1,0 +1,821 @@
+basePath: /api/v1
+definitions:
+  Backend_internal_models.CandidateResponse:
+    properties:
+      class:
+        example: "2024"
+        type: string
+      created_at:
+        example: "2025-11-12T03:00:00Z"
+        type: string
+      id:
+        example: 1
+        type: integer
+      major:
+        example: informatics
+        type: string
+      mission:
+        example: Serve all students equally
+        type: string
+      name:
+        example: John Doe
+        type: string
+      profile_picture:
+        example: https://example.com/image.jpg
+        type: string
+      updated_at:
+        example: "2025-11-12T03:00:00Z"
+        type: string
+      user_id:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        type: string
+      vision:
+        example: My vision for better education
+        type: string
+      vote_count:
+        example: 5
+        type: integer
+    type: object
+  Backend_internal_models.CastVoteRequest:
+    properties:
+      candidate_id:
+        example: 1
+        type: integer
+    required:
+    - candidate_id
+    type: object
+  Backend_internal_models.User:
+    properties:
+      additional_notes:
+        type: string
+      created_at:
+        type: string
+      date_of_birth:
+        type: string
+      email:
+        type: string
+      email_verification_token:
+        type: string
+      email_verified:
+        type: boolean
+      file_path:
+        type: string
+      first_name:
+        type: string
+      gender:
+        type: string
+      id:
+        type: string
+      institution_name:
+        type: string
+      last_name:
+        type: string
+      major:
+        type: string
+      middle_name:
+        type: string
+      password:
+        type: string
+      password_reset_expires:
+        type: string
+      password_reset_token:
+        type: string
+      profile_picture:
+        type: string
+      role_id:
+        type: integer
+      student_id:
+        type: string
+      student_id_verification:
+        type: string
+      student_id_verified:
+        type: boolean
+      twofa_enabled:
+        type: boolean
+      twofa_image:
+        type: string
+      twofa_secret:
+        type: string
+      updated_at:
+        type: string
+      username:
+        type: string
+      year:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@pufacomputing.ac.id
+    name: API Support
+    url: https://compsci.president.ac.id/support
+  description: Backend API for PUFA Computer Science with Candidates and Votes Management
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: https://compsci.president.ac.id/terms
+  title: PUFA Backend API
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: 'Login with username/email and password. Returns JWT token for
+        authentication. Admin (role_id: 1) can create candidates. Computizen (role_id:
+        2) with year 2025 can vote.'
+      parameters:
+      - description: Login credentials
+        in: body
+        name: request
+        required: true
+        schema:
+          properties:
+            passcode:
+              type: string
+            password:
+              type: string
+            username:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Login successful with JWT token
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Invalid credentials or email not verified
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Login user
+      tags:
+      - Auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Logout the current user and invalidate the JWT token
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Logout successful
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Logout user
+      tags:
+      - Auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: 'Register a new user account. New users get Computizen role (role_id:
+        2) by default. Only users with year 2025 can vote.'
+      parameters:
+      - description: User registration details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/Backend_internal_models.User'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: User registered successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request or validation error
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Register a new user
+      tags:
+      - Auth
+  /candidates:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of all candidates with optional filters by
+        major and class
+      parameters:
+      - description: Filter by major (information_system or informatics)
+        in: query
+        name: major
+        type: string
+      - description: Filter by class
+        in: query
+        name: class
+        type: string
+      - default: 1
+        description: Page number for pagination
+        in: query
+        name: page
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of candidates" example({"success":true,"data":[{"id":1,"name":"John
+            Doe","vision":"My vision","mission":"My mission","class":"2024","major":"informatics","profile_picture":"https://...","vote_count":5}],"totalResults":1,"totalPages":1})
+          schema:
+            additionalProperties: true
+            type: object
+      summary: List all candidates
+      tags:
+      - Candidates
+  /candidates/{candidateID}:
+    get:
+      consumes:
+      - application/json
+      description: Get detailed information about a specific candidate including vote
+        count
+      parameters:
+      - description: Candidate ID
+        in: path
+        name: candidateID
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Candidate details
+          schema:
+            properties:
+              data:
+                $ref: '#/definitions/Backend_internal_models.CandidateResponse'
+              message:
+                type: string
+              success:
+                type: boolean
+            type: object
+        "400":
+          description: Invalid candidate ID
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Candidate not found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get candidate by ID
+      tags:
+      - Candidates
+  /candidates/{candidateID}/delete:
+    delete:
+      consumes:
+      - application/json
+      description: 'Delete a candidate by ID. Requires Admin role (role_id: 1) and
+        candidate:delete permission.'
+      parameters:
+      - description: Bearer token (Admin only)
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Candidate ID
+        in: path
+        name: candidateID
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Candidate deleted successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid candidate ID
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden - Admin role required
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Candidate not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 'Delete a candidate (Admin only - role_id: 1)'
+      tags:
+      - Candidates
+  /candidates/{candidateID}/edit:
+    put:
+      consumes:
+      - multipart/form-data
+      description: 'Update candidate information with optional profile picture upload.
+        Requires Admin role (role_id: 1) and candidate:edit permission.'
+      parameters:
+      - description: Bearer token (Admin only)
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Candidate ID
+        in: path
+        name: candidateID
+        required: true
+        type: integer
+      - description: Candidate data as JSON string
+        example: '{"name":"John Doe","vision":"Updated vision","major":"informatics"}'
+        in: formData
+        name: data
+        required: true
+        type: string
+      - description: New profile picture
+        in: formData
+        name: file
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Candidate updated successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden - Admin role required
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Candidate not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 'Update a candidate (Admin only - role_id: 1)'
+      tags:
+      - Candidates
+  /candidates/create:
+    post:
+      consumes:
+      - multipart/form-data
+      description: 'Create a new candidate with profile picture upload. Requires Admin
+        role (role_id: 1) and candidate:create permission.'
+      parameters:
+      - description: Bearer token (Admin only)
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Candidate data as JSON string
+        example: '{"name":"John Doe","vision":"My vision","mission":"My mission","class":"2024","major":"informatics"}'
+        in: formData
+        name: data
+        required: true
+        type: string
+      - description: Profile picture
+        in: formData
+        name: file
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Candidate created successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden - Admin role required
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 'Create a new candidate (Admin only - role_id: 1)'
+      tags:
+      - Candidates
+  /candidates/major/{major}:
+    get:
+      consumes:
+      - application/json
+      description: Get all candidates filtered by major (information_system or informatics)
+      parameters:
+      - description: Major (information_system or informatics)
+        in: path
+        name: major
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of candidates for the specified major
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid major
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get candidates by major
+      tags:
+      - Candidates
+  /votes:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of all votes (requires vote:view permission)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Filter by candidate ID
+        in: query
+        name: candidate_id
+        type: integer
+      - default: 1
+        description: Page number for pagination
+        in: query
+        name: page
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of votes
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: List all votes
+      tags:
+      - Votes
+  /votes/{voteID}/delete:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a vote by ID (requires vote:delete permission)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Vote ID
+        in: path
+        name: voteID
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Vote deleted successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid vote ID
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete a vote
+      tags:
+      - Votes
+  /votes/can-vote:
+    get:
+      consumes:
+      - application/json
+      description: Check if the current user is eligible to vote (year must be 2025,
+        hasn't voted yet, valid major)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Eligibility status
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Check if user can vote
+      tags:
+      - Votes
+  /votes/candidate/{candidateID}:
+    get:
+      consumes:
+      - application/json
+      description: Get all votes for a specific candidate (requires vote:view permission)
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Candidate ID
+        in: path
+        name: candidateID
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of votes for the candidate
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid candidate ID
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get votes by candidate
+      tags:
+      - Votes
+  /votes/candidate/{candidateID}/count:
+    get:
+      consumes:
+      - application/json
+      description: Get the total number of votes for a specific candidate
+      parameters:
+      - description: Candidate ID
+        in: path
+        name: candidateID
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Vote count
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid candidate ID
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get vote count for candidate
+      tags:
+      - Votes
+  /votes/cast:
+    post:
+      consumes:
+      - application/json
+      description: Cast a vote for a candidate. Any user with year 2025 can vote once
+        for a candidate from their major. One vote per user, same major required.
+      parameters:
+      - description: Bearer token (Year 2025 user)
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Vote request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/Backend_internal_models.CastVoteRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Vote cast successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request, already voted, not year 2025, or different major
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Cast a vote (Year 2025 users only)
+      tags:
+      - Votes
+  /votes/my-vote:
+    get:
+      consumes:
+      - application/json
+      description: Get the current user's vote details
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: User's vote details
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Vote not found
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get my vote
+      tags:
+      - Votes
+  /votes/status:
+    get:
+      consumes:
+      - application/json
+      description: Check if the current user has already voted
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Vote status
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Check vote status
+      tags:
+      - Votes
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

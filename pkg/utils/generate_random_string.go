@@ -56,3 +56,8 @@ func GenerateRandomTokenOtp() string {
 
 	return string(token)
 }
+
+// GenerateRandomInt64 generates a random int64 number
+func GenerateRandomInt64() int64 {
+	return rand.Int63()
+}

@@ -4,12 +4,14 @@ import (
 	"Backend/configs"
 	"Backend/internal/handlers/aspirations"
 	"Backend/internal/handlers/auth"
+	"Backend/internal/handlers/candidate"
 	"Backend/internal/handlers/event"
 	"Backend/internal/handlers/news"
 	"Backend/internal/handlers/permission"
 	"Backend/internal/handlers/role"
 	"Backend/internal/handlers/user"
 	"Backend/internal/handlers/version"
+	"Backend/internal/handlers/vote"
 	"Backend/internal/middleware"
 	"Backend/internal/services"
 	"log"
@@ -17,6 +19,8 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func SetupRoutes() *gin.Engine {
@@ -74,6 +78,8 @@ func SetupRoutes() *gin.Engine {
 	roleService := services.NewRoleService()
 	permissionService := services.NewPermissionService()
 	aspirationsService := services.NewAspirationService()
+	candidateService := services.NewCandidateService()
+	voteService := services.NewVoteService()
 	AWSService, _ := services.NewAWSService()
 	R2Service, _ := services.NewR2Service()
 	// Get email service configuration
@@ -161,6 +167,8 @@ func SetupRoutes() *gin.Engine {
 	roleHandlers := role.NewRoleHandler(roleService, userService, permissionService)
 	permissionHandlers := permission.NewPermissionHandler(permissionService)
 	aspirationHandlers := aspirations.NewAspirationHandlers(aspirationsService, permissionService)
+	candidateHandlers := candidate.NewCandidateHandler(candidateService, permissionService, AWSService, R2Service)
+	voteHandlers := vote.NewVoteHandler(voteService, permissionService)
 	versionHandlers := version.NewVersionHandlers(VersionService)
 
 	api := r.Group("/api/v1")
@@ -262,6 +270,42 @@ func SetupRoutes() *gin.Engine {
 		versionRoutes.GET("/", versionHandlers.GetVersion)
 		versionRoutes.GET("/changelog", versionHandlers.GetChangelog)
 	}
+
+	// Authenticated candidate routes (registered first to avoid route conflicts)
+	candidateAuthRoutes := api.Group("/candidates")
+	{
+		candidateAuthRoutes.Use(middleware.TokenMiddleware())
+		candidateAuthRoutes.GET("/my-major", candidateHandlers.GetCandidatesForMyMajor)
+		candidateAuthRoutes.POST("/create", candidateHandlers.CreateCandidate)
+		candidateAuthRoutes.PUT("/:candidateID/edit", candidateHandlers.UpdateCandidate)
+		candidateAuthRoutes.DELETE("/:candidateID/delete", candidateHandlers.DeleteCandidate)
+	}
+	// Public candidate routes
+	candidateRoutes := api.Group("/candidates")
+	{
+		candidateRoutes.GET("/", candidateHandlers.GetAllCandidates)
+		candidateRoutes.GET("/:candidateID", candidateHandlers.GetCandidateByID)
+	}
+
+	voteRoutes := api.Group("/votes")
+	{
+		voteRoutes.Use(middleware.TokenMiddleware())
+		voteRoutes.POST("/cast", voteHandlers.CastVote)
+		voteRoutes.GET("/status", voteHandlers.GetVoteStatus)
+		voteRoutes.GET("/my-vote", voteHandlers.GetMyVote)
+		voteRoutes.GET("/can-vote", voteHandlers.CheckCanVote)
+		voteRoutes.GET("/", voteHandlers.ListVotes)
+		voteRoutes.GET("/candidate/:candidateID", voteHandlers.GetVotesByCandidateID)
+		voteRoutes.DELETE("/:voteID/delete", voteHandlers.DeleteVote)
+	}
+	// Public vote routes (no authentication required)
+	votePublicRoutes := api.Group("/votes")
+	{
+		votePublicRoutes.GET("/candidate/:candidateID/count", voteHandlers.GetVoteCountByCandidate)
+	}
+
+	// Swagger documentation endpoint
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	return r
 }

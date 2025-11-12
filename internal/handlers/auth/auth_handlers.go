@@ -33,6 +33,17 @@ func NewAuthHandlers(authService *services.AuthService, permissionService *servi
 	}
 }
 
+// RegisterUser registers a new user (default role: Computizen - role_id 2)
+// @Summary Register a new user
+// @Description Register a new user account. New users get Computizen role (role_id: 2) by default. Only users with year 2025 can vote.
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body models.User true "User registration details"
+// @Success 201 {object} map[string]interface{} "User registered successfully"
+// @Failure 400 {object} map[string]interface{} "Bad request or validation error"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /auth/register [post]
 func (h *Handlers) RegisterUser(c *gin.Context) {
 	log.Println("=== Starting RegisterUser function ===")
 	var newUser models.User
@@ -157,6 +168,18 @@ func validateEmail(email, suffix string) error {
 	return nil
 }
 
+// Login authenticates a user and returns JWT token
+// @Summary Login user
+// @Description Login with username/email and password. Returns JWT token for authentication. Admin (role_id: 1) can create candidates. Computizen (role_id: 2) with year 2025 can vote.
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body object{username=string,password=string,passcode=string} true "Login credentials"
+// @Success 200 {object} map[string]interface{} "Login successful with JWT token"
+// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 401 {object} map[string]interface{} "Invalid credentials or email not verified"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Router /auth/login [post]
 func (h *Handlers) Login(c *gin.Context) {
 	var loginRequest struct {
 		Username string  `json:"username"`
@@ -269,6 +292,17 @@ func (h *Handlers) Login(c *gin.Context) {
 	})
 }
 
+// Logout logs out the current user
+// @Summary Logout user
+// @Description Logout the current user and invalidate the JWT token
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param Authorization header string true "Bearer token"
+// @Success 200 {object} map[string]interface{} "Logout successful"
+// @Failure 401 {object} map[string]interface{} "Unauthorized"
+// @Security BearerAuth
+// @Router /auth/logout [post]
 func (h *Handlers) Logout(c *gin.Context) {
 	tokenString, err := utils.ExtractTokenFromHeader(c)
 	if err != nil {
