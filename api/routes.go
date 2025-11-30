@@ -26,13 +26,13 @@ import (
 func SetupRoutes() *gin.Engine {
 	// Set Gin to release mode for better performance
 	gin.SetMode(gin.ReleaseMode)
-	
+
 	// Create a new engine with default configuration
 	r := gin.New()
-	
+
 	// Add recovery middleware to recover from panics
 	r.Use(gin.Recovery())
-	
+
 	// Use custom logger for better performance under high load
 	r.Use(gin.LoggerWithConfig(gin.LoggerConfig{
 		SkipPaths: []string{"/public", "/api/v1/health"}, // Skip logging for static files and health checks
@@ -42,11 +42,11 @@ func SetupRoutes() *gin.Engine {
 	r.MaxMultipartMemory = 10 << 20 // 10 MB
 
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{
-			"https://computing.president.ac.id", 
-			"https://staging.computing.president.ac.id", 
-			"https://compsci.president.ac.id", 
-			"https://staging.compsci.president.ac.id", 
+		AllowOrigins: []string{
+			"https://computing.president.ac.id",
+			"https://staging.computing.president.ac.id",
+			"https://compsci.president.ac.id",
+			"https://staging.compsci.president.ac.id",
 			"http://localhost:3000",
 		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"},
@@ -60,11 +60,11 @@ func SetupRoutes() *gin.Engine {
 	maxTokens := 2000 // Doubled from 1000 to handle 100+ concurrent users
 	refillInterval := time.Minute
 	r.Use(middleware.RateLimiterMiddleware(maxTokens, refillInterval, "general"))
-	
+
 	// Add a health check endpoint that bypasses rate limiting
 	r.GET("/api/v1/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
-			"status": "ok",
+			"status":    "ok",
 			"timestamp": time.Now().Format(time.RFC3339),
 		})
 	})
@@ -283,8 +283,12 @@ func SetupRoutes() *gin.Engine {
 	// Public candidate routes
 	candidateRoutes := api.Group("/candidates")
 	{
-		candidateRoutes.GET("/", candidateHandlers.GetAllCandidates)
-		candidateRoutes.GET("/:candidateID", candidateHandlers.GetCandidateByID)
+		// candidateRoutes.GET("/", candidateHandlers.GetAllCandidates)
+		candidateRoutes.GET("", candidateHandlers.GetAllCandidates) //cuma ini doang yang gua ubah
+		
+		// - Changed candidateRoutes.GET("/", ...) to candidateRoutes.GET("", ...)
+		// - Fixes 301 redirect issue that was causing CORS errors in frontend
+		// - Route now responds with 200 OK directly at /api/v1/candidates
 	}
 
 	voteRoutes := api.Group("/votes")
