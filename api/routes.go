@@ -8,6 +8,7 @@ import (
 	"Backend/internal/handlers/event"
 	"Backend/internal/handlers/news"
 	"Backend/internal/handlers/permission"
+	"Backend/internal/handlers/project"
 	"Backend/internal/handlers/role"
 	"Backend/internal/handlers/user"
 	"Backend/internal/handlers/version"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/gin-contrib/cors"
+	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -56,6 +58,12 @@ func SetupRoutes() *gin.Engine {
 		MaxAge:           12 * time.Hour,
 	}))
 
+	// Add request timeout middleware (30 seconds)
+	r.Use(middleware.TimeoutMiddleware(30 * time.Second))
+	
+	// Add gzip compression for responses (reduces bandwidth by 60-70%)
+	r.Use(gzip.Gzip(gzip.DefaultCompression))
+
 	// Increase rate limits for high traffic
 	maxTokens := 2000 // Doubled from 1000 to handle 100+ concurrent users
 	refillInterval := time.Minute
@@ -80,6 +88,8 @@ func SetupRoutes() *gin.Engine {
 	aspirationsService := services.NewAspirationService()
 	candidateService := services.NewCandidateService()
 	voteService := services.NewVoteService()
+	projectService := services.NewProjectService()
+	projectVoteService := services.NewProjectVoteService()
 	AWSService, _ := services.NewAWSService()
 	R2Service, _ := services.NewR2Service()
 	// Get email service configuration
@@ -169,6 +179,8 @@ func SetupRoutes() *gin.Engine {
 	aspirationHandlers := aspirations.NewAspirationHandlers(aspirationsService, permissionService)
 	candidateHandlers := candidate.NewCandidateHandler(candidateService, permissionService, AWSService, R2Service)
 	voteHandlers := vote.NewVoteHandler(voteService, permissionService)
+	projectHandlers := project.NewProjectHandler(projectService, permissionService, AWSService, R2Service)
+	projectVoteHandlers := project.NewProjectVoteHandler(projectVoteService)
 	versionHandlers := version.NewVersionHandlers(VersionService)
 
 	api := r.Group("/api/v1")
@@ -302,6 +314,29 @@ func SetupRoutes() *gin.Engine {
 	votePublicRoutes := api.Group("/votes")
 	{
 		votePublicRoutes.GET("/candidate/:candidateID/count", voteHandlers.GetVoteCountByCandidate)
+	}
+
+	// Public project routes
+	projectPublicRoutes := api.Group("/projects")
+	{
+		projectPublicRoutes.GET("/", projectHandlers.GetAllProjects)
+		projectPublicRoutes.GET("/:projectID", projectHandlers.GetProjectByID)
+		projectPublicRoutes.GET("/:projectID/votes/count", projectVoteHandlers.GetProjectVoteCount)
+	}
+
+	// Authenticated project routes
+	projectRoutes := api.Group("/projects")
+	{
+		projectRoutes.Use(middleware.TokenMiddleware())
+		projectRoutes.POST("/create", projectHandlers.CreateProject)
+		projectRoutes.PUT("/:projectID/edit", projectHandlers.UpdateProject)
+		projectRoutes.DELETE("/:projectID/delete", projectHandlers.DeleteProject)
+		projectRoutes.PUT("/:projectID/publish", projectHandlers.PublishProject)
+		projectRoutes.GET("/my-projects", projectHandlers.GetMyProjects)
+		projectRoutes.POST("/:projectID/vote", projectVoteHandlers.VoteProject)
+		projectRoutes.DELETE("/:projectID/unvote", projectVoteHandlers.UnvoteProject)
+		projectRoutes.GET("/:projectID/votes/check", projectVoteHandlers.CheckHasVoted)
+		projectRoutes.GET("/votes/my-votes", projectVoteHandlers.GetMyProjectVotes)
 	}
 
 	// Swagger documentation endpoint

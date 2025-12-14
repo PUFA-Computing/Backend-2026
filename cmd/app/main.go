@@ -16,7 +16,7 @@ import (
 
 // @title PUFA Backend API
 // @version 1.0
-// @description Backend API for PUFA Computer Science with Candidates and Votes Management
+// @description Backend API for PUFA Computer Science with Projects, Candidates and Votes Management
 // @termsOfService https://compsci.president.ac.id/terms
 
 // @contact.name API Support
@@ -33,6 +33,21 @@ import (
 // @in header
 // @name Authorization
 // @description Type "Bearer" followed by a space and JWT token.
+
+// @tag.name Auth
+// @tag.description Authentication endpoints
+
+// @tag.name Projects
+// @tag.description Project management endpoints
+
+// @tag.name Project Votes
+// @tag.description Project voting endpoints
+
+// @tag.name Candidates
+// @tag.description Candidate management endpoints
+
+// @tag.name Votes
+// @tag.description Candidate voting endpoints
 
 func tryInitRedis() {
 	defer func() {

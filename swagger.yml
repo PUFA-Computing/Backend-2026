@@ -377,6 +377,344 @@ paths:
                     description: Invalid input
                 '500':
                     description: Error retrieving News by ID
+    /projects/:
+        get:
+            tags:
+                - projects
+            summary: Returns all published projects
+            description: Returns a paginated list of all published projects with optional category filter
+            operationId: getAllProjects
+            parameters:
+              - name: category
+                in: query
+                description: Filter by category (Website, AI, System, etc)
+                required: false
+                type: string
+              - name: page
+                in: query
+                description: Page number for pagination
+                required: false
+                type: integer
+            responses:
+                '200':
+                    description: successful operation
+                    schema:
+                        type: array
+                        items:
+                            $ref: '#/definitions/Project'
+                '500':
+                    description: error retrieving projects
+    /projects/{projectId}:
+        get:
+            tags:
+                - projects
+            summary: Get project by projectID
+            description: Get detailed information about a specific project including vote count
+            operationId: getProjectByID
+            parameters:
+                - name: projectId
+                  in: path
+                  description: ID of project to fetch
+                  required: true
+                  type: integer
+                  format: int64
+            responses:
+                '200':
+                    description: successful operation
+                    schema:
+                        $ref: '#/definitions/Project'
+                '404':
+                    description: Project not found
+                '500':
+                    description: Error retrieving project by ID
+    /projects/create:
+        post:
+            tags:
+                - projects
+            summary: Create new project
+            description: Create a new project with image upload (requires authentication)
+            operationId: createProject
+            consumes:
+                - multipart/form-data
+            parameters:
+              - name: data
+                in: formData
+                description: Project data as JSON string
+                required: true
+                type: string
+              - name: file
+                in: formData
+                description: Project image file
+                required: true
+                type: file
+            responses:
+                '201':
+                    description: Project created successfully
+                    schema:
+                        $ref: '#/definitions/Project'
+                '400':
+                    description: Invalid input
+                '401':
+                    description: Unauthorized
+                '500':
+                    description: Internal Server Error
+            security:
+                - computing_auth:
+                      - write:content
+                      - read:content
+    /projects/{projectId}/edit:
+        put:
+            tags:
+                - projects
+            summary: Update existing project
+            description: Update project information (only owner can update)
+            operationId: updateProject
+            consumes:
+                - multipart/form-data
+            parameters:
+              - name: projectId
+                in: path
+                description: ID of project to update
+                required: true
+                type: integer
+                format: int64
+              - name: data
+                in: formData
+                description: Project data as JSON string
+                required: true
+                type: string
+              - name: file
+                in: formData
+                description: New project image file
+                required: false
+                type: file
+            responses:
+                '200':
+                    description: Project updated successfully
+                    schema:
+                        $ref: '#/definitions/Project'
+                '400':
+                    description: Invalid input
+                '401':
+                    description: Unauthorized
+                '403':
+                    description: Forbidden - Not project owner
+                '404':
+                    description: Project not found
+                '500':
+                    description: Internal Server Error
+            security:
+                - computing_auth:
+                      - write:content
+                      - read:content
+    /projects/{projectId}/delete:
+        delete:
+            tags:
+                - projects
+            summary: Delete project
+            description: Delete a project (only owner or admin can delete)
+            operationId: deleteProject
+            parameters:
+                - name: projectId
+                  in: path
+                  description: ID of project to delete
+                  required: true
+                  type: integer
+                  format: int64
+            responses:
+                '200':
+                    description: Project deleted successfully
+                '400':
+                    description: Invalid input
+                '401':
+                    description: Unauthorized
+                '403':
+                    description: Forbidden - Not project owner or admin
+                '404':
+                    description: Project not found
+                '500':
+                    description: Error deleting project
+            security:
+                - computing_auth:
+                      - write:content
+                      - read:content
+    /projects/{projectId}/publish:
+        put:
+            tags:
+                - projects
+            summary: Publish project (Admin only)
+            description: Publish a project to make it visible to all users
+            operationId: publishProject
+            parameters:
+                - name: projectId
+                  in: path
+                  description: ID of project to publish
+                  required: true
+                  type: integer
+                  format: int64
+            responses:
+                '200':
+                    description: Project published successfully
+                '400':
+                    description: Invalid input
+                '401':
+                    description: Unauthorized
+                '403':
+                    description: Forbidden - Admin role required
+                '404':
+                    description: Project not found
+                '500':
+                    description: Error publishing project
+            security:
+                - computing_auth:
+                      - write:content
+                      - read:content
+    /projects/my-projects:
+        get:
+            tags:
+                - projects
+            summary: Get my projects
+            description: Get all projects created by the current authenticated user
+            operationId: getMyProjects
+            responses:
+                '200':
+                    description: successful operation
+                    schema:
+                        type: array
+                        items:
+                            $ref: '#/definitions/Project'
+                '401':
+                    description: Unauthorized
+                '500':
+                    description: Error retrieving projects
+            security:
+                - computing_auth:
+                      - write:content
+                      - read:content
+    /projects/{projectId}/vote:
+        post:
+            tags:
+                - project_votes
+            summary: Vote for a project
+            description: Cast a vote for a published project (one vote per user per project)
+            operationId: voteProject
+            parameters:
+                - name: projectId
+                  in: path
+                  description: ID of project to vote for
+                  required: true
+                  type: integer
+                  format: int64
+            responses:
+                '201':
+                    description: Vote cast successfully
+                '400':
+                    description: Already voted or project not published
+                '401':
+                    description: Unauthorized
+                '404':
+                    description: Project not found
+                '500':
+                    description: Internal Server Error
+            security:
+                - computing_auth:
+                      - write:content
+                      - read:content
+    /projects/{projectId}/unvote:
+        delete:
+            tags:
+                - project_votes
+            summary: Remove vote from project
+            description: Remove your vote from a project
+            operationId: unvoteProject
+            parameters:
+                - name: projectId
+                  in: path
+                  description: ID of project to unvote
+                  required: true
+                  type: integer
+                  format: int64
+            responses:
+                '200':
+                    description: Vote removed successfully
+                '400':
+                    description: Haven't voted for this project
+                '401':
+                    description: Unauthorized
+                '404':
+                    description: Project not found
+                '500':
+                    description: Internal Server Error
+            security:
+                - computing_auth:
+                      - write:content
+                      - read:content
+    /projects/{projectId}/votes/count:
+        get:
+            tags:
+                - project_votes
+            summary: Get vote count for project
+            description: Get the total number of votes for a specific project (public endpoint)
+            operationId: getProjectVoteCount
+            parameters:
+                - name: projectId
+                  in: path
+                  description: ID of project
+                  required: true
+                  type: integer
+                  format: int64
+            responses:
+                '200':
+                    description: successful operation
+                '400':
+                    description: Invalid project ID
+                '500':
+                    description: Error retrieving vote count
+    /projects/{projectId}/votes/check:
+        get:
+            tags:
+                - project_votes
+            summary: Check if user has voted for project
+            description: Check if the current authenticated user has voted for a specific project
+            operationId: checkHasVoted
+            parameters:
+                - name: projectId
+                  in: path
+                  description: ID of project
+                  required: true
+                  type: integer
+                  format: int64
+            responses:
+                '200':
+                    description: successful operation
+                '400':
+                    description: Invalid project ID
+                '401':
+                    description: Unauthorized
+                '500':
+                    description: Error checking vote status
+            security:
+                - computing_auth:
+                      - write:content
+                      - read:content
+    /projects/votes/my-votes:
+        get:
+            tags:
+                - project_votes
+            summary: Get my project votes
+            description: Get all projects voted by the current authenticated user
+            operationId: getMyProjectVotes
+            responses:
+                '200':
+                    description: successful operation
+                '401':
+                    description: Unauthorized
+                '500':
+                    description: Error retrieving votes
+            security:
+                - computing_auth:
+                      - write:content
+                      - read:content
 definitions:
     User:
         type: object
@@ -450,4 +788,37 @@ definitions:
                 type: string
                 format: date-time
         xml:
-            name: News
+            name: News    Project:
+        type: object
+        properties:
+            id:
+                type: integer
+                format: int64
+                readOnly: true
+            user_id:
+                type: string
+                format: uuid
+            user_name:
+                type: string
+            title:
+                type: string
+            description:
+                type: string
+            category:
+                type: string
+            project_url:
+                type: string
+            image_url:
+                type: string
+            is_published:
+                type: boolean
+            vote_count:
+                type: integer
+            created_at:
+                type: string
+                format: date-time
+            updated_at:
+                type: string
+                format: date-time
+        xml:
+            name: Project

@@ -29,12 +29,12 @@ func Init(config *configs.Config) {
 		log.Fatalf("Failed to parse database config: %v", err)
 	}
 	
-	// Configure connection pool for higher concurrency
-	poolConfig.MaxConns = 50                    // Increase max connections (default is 4)
-	poolConfig.MinConns = 10                    // Keep minimum connections ready
-	poolConfig.MaxConnLifetime = 30 * time.Minute // Max connection lifetime
-	poolConfig.MaxConnIdleTime = 5 * time.Minute  // Max idle time
-	poolConfig.HealthCheckPeriod = 1 * time.Minute // Health check period
+	// Configure connection pool for high concurrency and reliability
+	poolConfig.MaxConns = 100                      // Increased from 50 to handle more concurrent users
+	poolConfig.MinConns = 10                       // Keep minimum connections ready
+	poolConfig.MaxConnLifetime = 1 * time.Hour     // Increased from 30min for better connection reuse
+	poolConfig.MaxConnIdleTime = 30 * time.Minute  // Increased from 5min to reduce reconnection overhead
+	poolConfig.HealthCheckPeriod = 1 * time.Minute // Regular health checks
 	
 	// Create the connection pool with the enhanced configuration
 	DB, err = pgxpool.NewWithConfig(context.Background(), poolConfig)
@@ -42,7 +42,8 @@ func Init(config *configs.Config) {
 		log.Fatalf("Failed to connect to the database: %v", err)
 	}
 
-	log.Println("Connected to the database with optimized connection pool")
+	log.Printf("Connected to database with optimized pool (MaxConns: %d, MinConns: %d)", 
+		poolConfig.MaxConns, poolConfig.MinConns)
 }
 
 func Close() {

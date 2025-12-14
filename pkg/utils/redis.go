@@ -141,3 +141,66 @@ func CloseRedis() {
 	RedisEnabled = false
 	Rdb = nil
 }
+
+// Cache helper functions
+
+// GetFromRedis retrieves a value from Redis cache
+func GetFromRedis(key string) (string, error) {
+	if !RedisEnabled || Rdb == nil {
+		return "", redis.Nil
+	}
+	
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	
+	val, err := Rdb.Get(ctx, key).Result()
+	if err != nil {
+		return "", err
+	}
+	
+	return val, nil
+}
+
+// SetToRedis stores a value in Redis cache with TTL
+func SetToRedis(key string, value string, ttl time.Duration) error {
+	if !RedisEnabled || Rdb == nil {
+		return nil // Silently skip if Redis not available
+	}
+	
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	
+	return Rdb.Set(ctx, key, value, ttl).Err()
+}
+
+// DeleteFromRedis removes a key from Redis cache
+func DeleteFromRedis(key string) error {
+	if !RedisEnabled || Rdb == nil {
+		return nil
+	}
+	
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	
+	return Rdb.Del(ctx, key).Err()
+}
+
+// DeletePatternFromRedis removes all keys matching a pattern
+func DeletePatternFromRedis(pattern string) error {
+	if !RedisEnabled || Rdb == nil {
+		return nil
+	}
+	
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	
+	// Use SCAN to find matching keys
+	iter := Rdb.Scan(ctx, 0, pattern, 0).Iterator()
+	for iter.Next(ctx) {
+		if err := Rdb.Del(ctx, iter.Val()).Err(); err != nil {
+			log.Printf("Error deleting key %s: %v", iter.Val(), err)
+		}
+	}
+	
+	return iter.Err()
+}

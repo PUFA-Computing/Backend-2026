@@ -1,6 +1,6 @@
 basePath: /api/v1
 definitions:
-  Backend_internal_models.CandidateResponse:
+  models.CandidateResponse:
     properties:
       class:
         example: "2024"
@@ -36,7 +36,7 @@ definitions:
         example: 5
         type: integer
     type: object
-  Backend_internal_models.CastVoteRequest:
+  models.CastVoteRequest:
     properties:
       candidate_id:
         example: 1
@@ -44,7 +44,46 @@ definitions:
     required:
     - candidate_id
     type: object
-  Backend_internal_models.User:
+  models.ProjectResponse:
+    properties:
+      category:
+        example: Website
+        type: string
+      created_at:
+        example: "2025-12-14T03:00:00Z"
+        type: string
+      description:
+        example: A detailed description of the project
+        type: string
+      id:
+        example: 1
+        type: integer
+      image_url:
+        example: https://example.com/image.jpg
+        type: string
+      is_published:
+        example: true
+        type: boolean
+      project_url:
+        example: https://github.com/user/project
+        type: string
+      title:
+        example: My Awesome Project
+        type: string
+      updated_at:
+        example: "2025-12-14T03:00:00Z"
+        type: string
+      user_id:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        type: string
+      user_name:
+        example: John Doe
+        type: string
+      vote_count:
+        example: 5
+        type: integer
+    type: object
+  models.User:
     properties:
       additional_notes:
         type: string
@@ -105,15 +144,7 @@ definitions:
     type: object
 host: localhost:8080
 info:
-  contact:
-    email: support@pufacomputing.ac.id
-    name: API Support
-    url: https://compsci.president.ac.id/support
-  description: Backend API for PUFA Computer Science with Candidates and Votes Management
-  license:
-    name: MIT
-    url: https://opensource.org/licenses/MIT
-  termsOfService: https://compsci.president.ac.id/terms
+  description: Backend API for PUFA Computer Science Documentation
   title: PUFA Backend API
   version: "1.0"
 paths:
@@ -205,7 +236,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/Backend_internal_models.User'
+          $ref: '#/definitions/models.User'
       produces:
       - application/json
       responses:
@@ -279,7 +310,7 @@ paths:
           schema:
             properties:
               data:
-                $ref: '#/definitions/Backend_internal_models.CandidateResponse'
+                $ref: '#/definitions/models.CandidateResponse'
               message:
                 type: string
               success:
@@ -473,33 +504,576 @@ paths:
       summary: 'Create a new candidate (Admin only - role_id: 1)'
       tags:
       - Candidates
-  /candidates/major/{major}:
+  /candidates/my-major:
     get:
       consumes:
       - application/json
-      description: Get all candidates filtered by major (information_system or informatics)
+      description: Get all candidates that the current user can vote for based on
+        their major. Requires authentication.
       parameters:
-      - description: Major (information_system or informatics)
-        in: path
-        name: major
+      - description: Bearer token
+        in: header
+        name: Authorization
         required: true
         type: string
       produces:
       - application/json
       responses:
         "200":
-          description: List of candidates for the specified major
+          description: List of candidates for the user's major
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get candidates for my major
+      tags:
+      - Candidates
+  /projects:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of all published projects with optional filters
+        by category
+      parameters:
+      - description: Filter by category (Website, AI, System, etc)
+        in: query
+        name: category
+        type: string
+      - default: 1
+        description: Page number for pagination
+        in: query
+        name: page
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of projects
+          schema:
+            additionalProperties: true
+            type: object
+      summary: List all projects
+      tags:
+      - Projects
+  /projects/{projectID}:
+    get:
+      consumes:
+      - application/json
+      description: Get detailed information about a specific project including vote
+        count
+      parameters:
+      - description: Project ID
+        in: path
+        name: projectID
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Project details
+          schema:
+            properties:
+              data:
+                $ref: '#/definitions/models.ProjectResponse'
+              message:
+                type: string
+              success:
+                type: boolean
+            type: object
+        "400":
+          description: Invalid project ID
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Project not found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get project by ID
+      tags:
+      - Projects
+  /projects/{projectID}/delete:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a project by ID. Only project owner or admin can delete.
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Project ID
+        in: path
+        name: projectID
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Project deleted successfully
           schema:
             additionalProperties: true
             type: object
         "400":
-          description: Invalid major
+          description: Invalid project ID
           schema:
             additionalProperties: true
             type: object
-      summary: Get candidates by major
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden - Not project owner or admin
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Project not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Delete a project
       tags:
-      - Candidates
+      - Projects
+  /projects/{projectID}/edit:
+    put:
+      consumes:
+      - multipart/form-data
+      description: Update project information with optional image upload. Only project
+        owner can update.
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Project ID
+        in: path
+        name: projectID
+        required: true
+        type: integer
+      - description: Project data as JSON string
+        example: '{"title":"Updated Title","description":"Updated description"}'
+        in: formData
+        name: data
+        required: true
+        type: string
+      - description: New project image
+        in: formData
+        name: file
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Project updated successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden - Not project owner
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Project not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Update a project
+      tags:
+      - Projects
+  /projects/{projectID}/publish:
+    put:
+      consumes:
+      - application/json
+      description: Publish a project to make it visible to all users. Requires project:publish
+        permission.
+      parameters:
+      - description: Bearer token (Admin only)
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Project ID
+        in: path
+        name: projectID
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Project published successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid project ID
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden - Admin role required
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Project not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Publish a project (Admin only)
+      tags:
+      - Projects
+  /projects/{projectID}/unvote:
+    delete:
+      consumes:
+      - application/json
+      description: Remove your vote from a project
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Project ID
+        in: path
+        name: projectID
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Vote removed successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request or haven't voted
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Project not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Remove vote from a project
+      tags:
+      - Project Votes
+  /projects/{projectID}/vote:
+    post:
+      consumes:
+      - application/json
+      description: Vote for a published project. One vote per user per project.
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Project ID
+        in: path
+        name: projectID
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Vote cast successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request, already voted, or project not published
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Project not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Vote for a project
+      tags:
+      - Project Votes
+  /projects/{projectID}/votes/check:
+    get:
+      consumes:
+      - application/json
+      description: Check if the current authenticated user has voted for a specific
+        project
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Project ID
+        in: path
+        name: projectID
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Vote status
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid project ID
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Check if user has voted for project
+      tags:
+      - Project Votes
+  /projects/{projectID}/votes/count:
+    get:
+      consumes:
+      - application/json
+      description: Get the total number of votes for a specific project. No authentication
+        required.
+      parameters:
+      - description: Project ID
+        in: path
+        name: projectID
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Vote count
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid project ID
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get vote count for project (Public)
+      tags:
+      - Project Votes
+  /projects/create:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Create a new project with image upload. Requires authentication.
+        Project will be unpublished by default.
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Project data as JSON string
+        example: '{"title":"My Project","description":"Project description","category":"Website","project_url":"https://github.com/user/project"}'
+        in: formData
+        name: data
+        required: true
+        type: string
+      - description: Project image
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Project created successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad request
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Create a new project
+      tags:
+      - Projects
+  /projects/my-projects:
+    get:
+      consumes:
+      - application/json
+      description: Get all projects created by the current authenticated user
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of user's projects
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get my projects
+      tags:
+      - Projects
+  /projects/votes/my-votes:
+    get:
+      consumes:
+      - application/json
+      description: Get all projects voted by the current authenticated user
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of user's votes
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get my project votes
+      tags:
+      - Project Votes
   /votes:
     get:
       consumes:
@@ -670,7 +1244,8 @@ paths:
     get:
       consumes:
       - application/json
-      description: Get the total number of votes for a specific candidate
+      description: Get the total number of votes for a specific candidate. No authentication
+        required.
       parameters:
       - description: Candidate ID
         in: path
@@ -695,7 +1270,7 @@ paths:
           schema:
             additionalProperties: true
             type: object
-      summary: Get vote count for candidate
+      summary: Get vote count for candidate (Public)
       tags:
       - Votes
   /votes/cast:
@@ -715,7 +1290,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/Backend_internal_models.CastVoteRequest'
+          $ref: '#/definitions/models.CastVoteRequest'
       produces:
       - application/json
       responses:
@@ -819,3 +1394,14 @@ securityDefinitions:
     name: Authorization
     type: apiKey
 swagger: "2.0"
+tags:
+- description: Authentication endpoints
+  name: Auth
+- description: Project management endpoints
+  name: Projects
+- description: Project voting endpoints
+  name: Project Votes
+- description: Candidate management endpoints
+  name: Candidates
+- description: Candidate voting endpoints
+  name: Votes
