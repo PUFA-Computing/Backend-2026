@@ -1,5 +1,11 @@
 basePath: /api/v1
 definitions:
+  models.ApproveProjectRequest:
+    properties:
+      note:
+        example: Project meets all quality standards
+        type: string
+    type: object
   models.CandidateResponse:
     properties:
       class:
@@ -46,6 +52,15 @@ definitions:
     type: object
   models.ProjectResponse:
     properties:
+      approved_at:
+        example: "2025-12-15T03:00:00Z"
+        type: string
+      approved_by:
+        example: 123e4567-e89b-12d3-a456-426614174000
+        type: string
+      approved_by_name:
+        example: Admin User
+        type: string
       category:
         example: Website
         type: string
@@ -67,6 +82,9 @@ definitions:
       project_url:
         example: https://github.com/user/project
         type: string
+      rejection_reason:
+        example: Does not meet quality standards
+        type: string
       title:
         example: My Awesome Project
         type: string
@@ -82,6 +100,14 @@ definitions:
       vote_count:
         example: 5
         type: integer
+    type: object
+  models.RejectProjectRequest:
+    properties:
+      reason:
+        example: Does not meet quality standards
+        type: string
+    required:
+    - reason
     type: object
   models.User:
     properties:
@@ -144,7 +170,16 @@ definitions:
     type: object
 host: localhost:8080
 info:
-  description: Backend API for PUFA Computer Science Documentation
+  contact:
+    email: support@pufacomputing.ac.id
+    name: API Support
+    url: https://compsci.president.ac.id/support
+  description: Backend API for PUFA Computer Science with Projects, Candidates and
+    Votes Management
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: https://compsci.president.ac.id/terms
   title: PUFA Backend API
   version: "1.0"
 paths:
@@ -605,6 +640,66 @@ paths:
       summary: Get project by ID
       tags:
       - Projects
+  /projects/{projectID}/approve:
+    put:
+      consumes:
+      - application/json
+      description: Approve a pending project to make it published and visible to all
+        users. Requires project:publish permission.
+      parameters:
+      - description: Bearer token (Admin only)
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Project ID
+        in: path
+        name: projectID
+        required: true
+        type: integer
+      - description: Approval note (optional)
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/models.ApproveProjectRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Project approved successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid project ID
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden - Admin role required
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Project not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Approve a project (Admin only)
+      tags:
+      - Projects
   /projects/{projectID}/delete:
     delete:
       consumes:
@@ -777,6 +872,67 @@ paths:
       security:
       - BearerAuth: []
       summary: Publish a project (Admin only)
+      tags:
+      - Projects
+  /projects/{projectID}/reject:
+    put:
+      consumes:
+      - application/json
+      description: Reject a pending project with a reason. Requires project:publish
+        permission.
+      parameters:
+      - description: Bearer token (Admin only)
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Project ID
+        in: path
+        name: projectID
+        required: true
+        type: integer
+      - description: Rejection reason
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.RejectProjectRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Project rejected successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Invalid project ID or missing reason
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden - Admin role required
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Project not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Reject a project (Admin only)
       tags:
       - Projects
   /projects/{projectID}/unvote:
@@ -1038,6 +1194,46 @@ paths:
       security:
       - BearerAuth: []
       summary: Get my projects
+      tags:
+      - Projects
+  /projects/pending:
+    get:
+      consumes:
+      - application/json
+      description: Get all projects that are awaiting admin approval. Requires project:publish
+        permission.
+      parameters:
+      - description: Bearer token (Admin only)
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of pending projects
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden - Admin role required
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get pending projects (Admin only)
       tags:
       - Projects
   /projects/votes/my-votes:

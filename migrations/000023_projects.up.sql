@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS projects (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_projects_user_id ON projects(user_id);
-CREATE INDEX idx_projects_category ON projects(category);
-CREATE INDEX idx_projects_is_published ON projects(is_published);
-CREATE INDEX idx_projects_created_at ON projects(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id);
+CREATE INDEX IF NOT EXISTS idx_projects_category ON projects(category);
+CREATE INDEX IF NOT EXISTS idx_projects_is_published ON projects(is_published);
+CREATE INDEX IF NOT EXISTS idx_projects_created_at ON projects(created_at DESC);

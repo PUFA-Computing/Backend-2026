@@ -12,8 +12,8 @@ import (
 // CreateProject inserts a new project into the database
 func CreateProject(project *models.Project) error {
 	query := `
-		INSERT INTO projects (user_id, title, description, category, project_url, image_url, is_published, vote_count)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO projects (user_id, title, description, category, project_url, image_url, is_published, vote_count, approved_by, approved_at, rejection_reason)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		RETURNING id, created_at, updated_at`
 
 	err := database.DB.QueryRow(
@@ -27,6 +27,9 @@ func CreateProject(project *models.Project) error {
 		project.ImageURL,
 		project.IsPublished,
 		project.VoteCount,
+		project.ApprovedBy,
+		project.ApprovedAt,
+		project.RejectionReason,
 	).Scan(&project.ID, &project.CreatedAt, &project.UpdatedAt)
 
 	return err
@@ -66,7 +69,8 @@ func GetProjectByID(projectID int) (*models.Project, error) {
 	var project models.Project
 	query := `
 		SELECT id, user_id, title, description, category, project_url, image_url, 
-		       is_published, vote_count, created_at, updated_at
+		       is_published, vote_count, approved_by, approved_at, rejection_reason,
+		       created_at, updated_at
 		FROM projects
 		WHERE id = $1`
 
@@ -80,6 +84,9 @@ func GetProjectByID(projectID int) (*models.Project, error) {
 		&project.ImageURL,
 		&project.IsPublished,
 		&project.VoteCount,
+		&project.ApprovedBy,
+		&project.ApprovedAt,
+		&project.RejectionReason,
 		&project.CreatedAt,
 		&project.UpdatedAt,
 	)
@@ -96,10 +103,13 @@ func GetProjectWithVoteCount(projectID int) (*models.ProjectResponse, error) {
 	var project models.ProjectResponse
 	query := `
 		SELECT p.id, p.user_id, p.title, p.description, p.category, p.project_url, 
-		       p.image_url, p.is_published, p.vote_count, p.created_at, p.updated_at,
-		       CONCAT(u.first_name, ' ', u.last_name) as user_name
+		       p.image_url, p.is_published, p.vote_count, p.approved_by, p.approved_at, 
+		       p.rejection_reason, p.created_at, p.updated_at,
+		       CONCAT(u.first_name, ' ', u.last_name) as user_name,
+		       CONCAT(approver.first_name, ' ', approver.last_name) as approved_by_name
 		FROM projects p
 		LEFT JOIN users u ON p.user_id = u.id
+		LEFT JOIN users approver ON p.approved_by = approver.id
 		WHERE p.id = $1`
 
 	err := database.DB.QueryRow(context.Background(), query, projectID).Scan(
@@ -112,9 +122,13 @@ func GetProjectWithVoteCount(projectID int) (*models.ProjectResponse, error) {
 		&project.ImageURL,
 		&project.IsPublished,
 		&project.VoteCount,
+		&project.ApprovedBy,
+		&project.ApprovedAt,
+		&project.RejectionReason,
 		&project.CreatedAt,
 		&project.UpdatedAt,
 		&project.UserName,
+		&project.ApprovedByName,
 	)
 
 	if err != nil {
@@ -129,10 +143,13 @@ func ListProjects(queryParams map[string]string) ([]*models.ProjectResponse, int
 	limit := 20
 	query := `
 		SELECT p.id, p.user_id, p.title, p.description, p.category, p.project_url, 
-		       p.image_url, p.is_published, p.vote_count, p.created_at, p.updated_at,
-		       CONCAT(u.first_name, ' ', u.last_name) as user_name
+		       p.image_url, p.is_published, p.vote_count, p.approved_by, p.approved_at,
+		       p.rejection_reason, p.created_at, p.updated_at,
+		       CONCAT(u.first_name, ' ', u.last_name) as user_name,
+		       CONCAT(approver.first_name, ' ', approver.last_name) as approved_by_name
 		FROM projects p
 		LEFT JOIN users u ON p.user_id = u.id
+		LEFT JOIN users approver ON p.approved_by = approver.id
 		WHERE 1 = 1`
 
 	// Add filters
@@ -204,9 +221,13 @@ func ListProjects(queryParams map[string]string) ([]*models.ProjectResponse, int
 			&project.ImageURL,
 			&project.IsPublished,
 			&project.VoteCount,
+			&project.ApprovedBy,
+			&project.ApprovedAt,
+			&project.RejectionReason,
 			&project.CreatedAt,
 			&project.UpdatedAt,
 			&project.UserName,
+			&project.ApprovedByName,
 		)
 		if err != nil {
 			return nil, totalPages, err
@@ -240,10 +261,13 @@ func CheckProjectExists(projectID int) (bool, error) {
 func GetProjectsByUser(userID uuid.UUID) ([]*models.ProjectResponse, error) {
 	query := `
 		SELECT p.id, p.user_id, p.title, p.description, p.category, p.project_url, 
-		       p.image_url, p.is_published, p.vote_count, p.created_at, p.updated_at,
-		       CONCAT(u.first_name, ' ', u.last_name) as user_name
+		       p.image_url, p.is_published, p.vote_count, p.approved_by, p.approved_at,
+		       p.rejection_reason, p.created_at, p.updated_at,
+		       CONCAT(u.first_name, ' ', u.last_name) as user_name,
+		       CONCAT(approver.first_name, ' ', approver.last_name) as approved_by_name
 		FROM projects p
 		LEFT JOIN users u ON p.user_id = u.id
+		LEFT JOIN users approver ON p.approved_by = approver.id
 		WHERE p.user_id = $1
 		ORDER BY p.created_at DESC`
 
@@ -266,9 +290,13 @@ func GetProjectsByUser(userID uuid.UUID) ([]*models.ProjectResponse, error) {
 			&project.ImageURL,
 			&project.IsPublished,
 			&project.VoteCount,
+			&project.ApprovedBy,
+			&project.ApprovedAt,
+			&project.RejectionReason,
 			&project.CreatedAt,
 			&project.UpdatedAt,
 			&project.UserName,
+			&project.ApprovedByName,
 		)
 		if err != nil {
 			return nil, err
@@ -286,3 +314,143 @@ func GetProjectOwnerID(projectID int) (uuid.UUID, error) {
 	err := database.DB.QueryRow(context.Background(), query, projectID).Scan(&ownerID)
 	return ownerID, err
 }
+
+// GetPendingProjects retrieves all projects awaiting approval
+func GetPendingProjects() ([]*models.ProjectResponse, error) {
+	query := `
+		SELECT p.id, p.user_id, p.title, p.description, p.category, p.project_url, 
+		       p.image_url, p.is_published, p.vote_count, p.approved_by, p.approved_at,
+		       p.rejection_reason, p.created_at, p.updated_at,
+		       CONCAT(u.first_name, ' ', u.last_name) as user_name,
+		       CONCAT(approver.first_name, ' ', approver.last_name) as approved_by_name
+		FROM projects p
+		LEFT JOIN users u ON p.user_id = u.id
+		LEFT JOIN users approver ON p.approved_by = approver.id
+		WHERE p.is_published = false AND p.rejection_reason IS NULL
+		ORDER BY p.created_at ASC`
+
+	rows, err := database.DB.Query(context.Background(), query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var projects []*models.ProjectResponse
+	for rows.Next() {
+		var project models.ProjectResponse
+		err := rows.Scan(
+			&project.ID,
+			&project.UserID,
+			&project.Title,
+			&project.Description,
+			&project.Category,
+			&project.ProjectURL,
+			&project.ImageURL,
+			&project.IsPublished,
+			&project.VoteCount,
+			&project.ApprovedBy,
+			&project.ApprovedAt,
+			&project.RejectionReason,
+			&project.CreatedAt,
+			&project.UpdatedAt,
+			&project.UserName,
+			&project.ApprovedByName,
+		)
+		if err != nil {
+			return nil, err
+		}
+		projects = append(projects, &project)
+	}
+
+	return projects, nil
+}
+
+// ApproveProject approves a project and makes it published
+func ApproveProject(projectID int, adminID uuid.UUID) error {
+	query := `
+		UPDATE projects
+		SET is_published = true, approved_by = $1, approved_at = NOW(), updated_at = NOW()
+		WHERE id = $2 AND is_published = false AND rejection_reason IS NULL`
+
+	result, err := database.DB.Exec(context.Background(), query, adminID, projectID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("project not found or already processed")
+	}
+
+	return nil
+}
+
+// RejectProject rejects a project with a reason
+func RejectProject(projectID int, reason string) error {
+	query := `
+		UPDATE projects
+		SET rejection_reason = $1, updated_at = NOW()
+		WHERE id = $2 AND is_published = false AND rejection_reason IS NULL`
+
+	result, err := database.DB.Exec(context.Background(), query, reason, projectID)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		return fmt.Errorf("project not found or already processed")
+	}
+
+	return nil
+}
+
+// GetAllProjectsAdmin retrieves all projects regardless of status (for admin)
+func GetAllProjectsAdmin() ([]*models.ProjectResponse, error) {
+	query := `
+		SELECT p.id, p.user_id, p.title, p.description, p.category, p.project_url, 
+		       p.image_url, p.is_published, p.vote_count, p.approved_by, p.approved_at,
+		       p.rejection_reason, p.created_at, p.updated_at,
+		       CONCAT(u.first_name, ' ', u.last_name) as user_name,
+		       CONCAT(approver.first_name, ' ', approver.last_name) as approved_by_name
+		FROM projects p
+		LEFT JOIN users u ON p.user_id = u.id
+		LEFT JOIN users approver ON p.approved_by = approver.id
+		ORDER BY p.created_at DESC`
+
+	rows, err := database.DB.Query(context.Background(), query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var projects []*models.ProjectResponse
+	for rows.Next() {
+		var project models.ProjectResponse
+		err := rows.Scan(
+			&project.ID,
+			&project.UserID,
+			&project.Title,
+			&project.Description,
+			&project.Category,
+			&project.ProjectURL,
+			&project.ImageURL,
+			&project.IsPublished,
+			&project.VoteCount,
+			&project.ApprovedBy,
+			&project.ApprovedAt,
+			&project.RejectionReason,
+			&project.CreatedAt,
+			&project.UpdatedAt,
+			&project.UserName,
+			&project.ApprovedByName,
+		)
+		if err != nil {
+			return nil, err
+		}
+		projects = append(projects, &project)
+	}
+
+	return projects, nil
+}
+

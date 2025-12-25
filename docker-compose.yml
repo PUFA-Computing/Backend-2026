@@ -31,7 +31,7 @@ services:
 
 networks:
   pufa_network:
-    external: true
+    external: false
 
 volumes:
   redis_data:

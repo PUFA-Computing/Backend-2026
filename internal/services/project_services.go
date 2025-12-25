@@ -140,3 +140,57 @@ func (ps *ProjectService) CheckProjectOwnership(projectID int, userID uuid.UUID)
 	}
 	return ownerID == userID, nil
 }
+
+// GetPendingProjects retrieves all projects awaiting approval
+func (ps *ProjectService) GetPendingProjects() ([]*models.ProjectResponse, error) {
+	projects, err := app.GetPendingProjects()
+	if err != nil {
+		return nil, err
+	}
+	return projects, nil
+}
+
+// ApproveProject approves a project (admin only)
+func (ps *ProjectService) ApproveProject(projectID int, adminID uuid.UUID) error {
+	// Check if project exists
+	exists, err := app.CheckProjectExists(projectID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return errors.New("project not found")
+	}
+
+	if err := app.ApproveProject(projectID, adminID); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// RejectProject rejects a project with a reason (admin only)
+func (ps *ProjectService) RejectProject(projectID int, reason string) error {
+	// Check if project exists
+	exists, err := app.CheckProjectExists(projectID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return errors.New("project not found")
+	}
+
+	if err := app.RejectProject(projectID, reason); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// GetAllProjectsAdmin retrieves all projects regardless of status (admin only)
+func (ps *ProjectService) GetAllProjectsAdmin() ([]*models.ProjectResponse, error) {
+	projects, err := app.GetAllProjectsAdmin()
+	if err != nil {
+		return nil, err
+	}
+	return projects, nil
+}

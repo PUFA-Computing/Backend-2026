@@ -50,6 +50,7 @@ func SetupRoutes() *gin.Engine {
 			"https://compsci.president.ac.id",
 			"https://staging.compsci.president.ac.id",
 			"http://localhost:3000",
+			"http://localhost:3001", // Added for development
 		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "Access-Control-Allow-Origin", "Access-Control-Allow-Headers"},
@@ -323,7 +324,7 @@ func SetupRoutes() *gin.Engine {
 	// Public project routes
 	projectPublicRoutes := api.Group("/projects")
 	{
-		projectPublicRoutes.GET("/", projectHandlers.GetAllProjects)
+		projectPublicRoutes.GET("", projectHandlers.GetAllProjects) // Fixed: removed "/" to avoid 301 redirect
 		projectPublicRoutes.GET("/:projectID", projectHandlers.GetProjectByID)
 		projectPublicRoutes.GET("/:projectID/votes/count", projectVoteHandlers.GetProjectVoteCount)
 	}
@@ -337,6 +338,13 @@ func SetupRoutes() *gin.Engine {
 		projectRoutes.DELETE("/:projectID/delete", projectHandlers.DeleteProject)
 		projectRoutes.PUT("/:projectID/publish", projectHandlers.PublishProject)
 		projectRoutes.GET("/my-projects", projectHandlers.GetMyProjects)
+		
+		// Admin approval routes
+		projectRoutes.GET("/pending", projectHandlers.GetPendingProjects)           // Admin only
+		projectRoutes.PUT("/:projectID/approve", projectHandlers.ApproveProject)    // Admin only
+		projectRoutes.PUT("/:projectID/reject", projectHandlers.RejectProject)      // Admin only
+		
+		// Voting routes
 		projectRoutes.POST("/:projectID/vote", projectVoteHandlers.VoteProject)
 		projectRoutes.DELETE("/:projectID/unvote", projectVoteHandlers.UnvoteProject)
 		projectRoutes.GET("/:projectID/votes/check", projectVoteHandlers.CheckHasVoted)

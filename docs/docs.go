@@ -9,6 +9,16 @@ const docTemplate = `{
     "info": {
         "description": "{{escape .Description}}",
         "title": "{{.Title}}",
+        "termsOfService": "https://compsci.president.ac.id/terms",
+        "contact": {
+            "name": "API Support",
+            "url": "https://compsci.president.ac.id/support",
+            "email": "support@pufacomputing.ac.id"
+        },
+        "license": {
+            "name": "MIT",
+            "url": "https://opensource.org/licenses/MIT"
+        },
         "version": "{{.Version}}"
     },
     "host": "{{.Host}}",
@@ -748,6 +758,65 @@ const docTemplate = `{
                 }
             }
         },
+        "/projects/pending": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get all projects that are awaiting admin approval. Requires project:publish permission.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Projects"
+                ],
+                "summary": "Get pending projects (Admin only)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer token (Admin only)",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of pending projects",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden - Admin role required",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/projects/votes/my-votes": {
             "get": {
                 "security": [
@@ -849,6 +918,94 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Project not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/projects/{projectID}/approve": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Approve a pending project to make it published and visible to all users. Requires project:publish permission.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Projects"
+                ],
+                "summary": "Approve a project (Admin only)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer token (Admin only)",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Project ID",
+                        "name": "projectID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Approval note (optional)",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/models.ApproveProjectRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Project approved successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid project ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden - Admin role required",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Project not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -1075,6 +1232,95 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Invalid project ID",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden - Admin role required",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Project not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/projects/{projectID}/reject": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Reject a pending project with a reason. Requires project:publish permission.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Projects"
+                ],
+                "summary": "Reject a project (Admin only)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer token (Admin only)",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Project ID",
+                        "name": "projectID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Rejection reason",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.RejectProjectRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Project rejected successfully",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid project ID or missing reason",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -1840,6 +2086,15 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "models.ApproveProjectRequest": {
+            "type": "object",
+            "properties": {
+                "note": {
+                    "type": "string",
+                    "example": "Project meets all quality standards"
+                }
+            }
+        },
         "models.CandidateResponse": {
             "type": "object",
             "properties": {
@@ -1904,6 +2159,18 @@ const docTemplate = `{
         "models.ProjectResponse": {
             "type": "object",
             "properties": {
+                "approved_at": {
+                    "type": "string",
+                    "example": "2025-12-15T03:00:00Z"
+                },
+                "approved_by": {
+                    "type": "string",
+                    "example": "123e4567-e89b-12d3-a456-426614174000"
+                },
+                "approved_by_name": {
+                    "type": "string",
+                    "example": "Admin User"
+                },
                 "category": {
                     "type": "string",
                     "example": "Website"
@@ -1932,6 +2199,10 @@ const docTemplate = `{
                     "type": "string",
                     "example": "https://github.com/user/project"
                 },
+                "rejection_reason": {
+                    "type": "string",
+                    "example": "Does not meet quality standards"
+                },
                 "title": {
                     "type": "string",
                     "example": "My Awesome Project"
@@ -1951,6 +2222,18 @@ const docTemplate = `{
                 "vote_count": {
                     "type": "integer",
                     "example": 5
+                }
+            }
+        },
+        "models.RejectProjectRequest": {
+            "type": "object",
+            "required": [
+                "reason"
+            ],
+            "properties": {
+                "reason": {
+                    "type": "string",
+                    "example": "Does not meet quality standards"
                 }
             }
         },
@@ -2078,12 +2361,12 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.1",
+	Version:          "1.0",
 	Host:             "localhost:8080",
 	BasePath:         "/api/v1",
 	Schemes:          []string{},
 	Title:            "PUFA Backend API",
-	Description:      "Backend API for PUFA Computer Science Documentation",
+	Description:      "Backend API for PUFA Computer Science with Projects, Candidates and Votes Management",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

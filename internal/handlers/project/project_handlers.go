@@ -134,7 +134,7 @@ func (h *Handler) CreateProject(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, gin.H{
 		"success": true,
-		"message": "Project Created Successfully",
+		"message": "Project Created Successfully. Awaiting admin approval before publication.",
 		"data":    project,
 	})
 }
@@ -462,3 +462,165 @@ func (h *Handler) GetMyProjects(c *gin.Context) {
 		"count":   len(projects),
 	})
 }
+
+// GetPendingProjects retrieves all projects awaiting approval (Admin only)
+// @Summary Get pending projects (Admin only)
+// @Description Get all projects that are awaiting admin approval. Requires project:publish permission.
+// @Tags Projects
+// @Accept json
+// @Produce json
+// @Param Authorization header string true "Bearer token (Admin only)"
+// @Success 200 {object} map[string]interface{} "List of pending projects"
+// @Failure 401 {object} map[string]interface{} "Unauthorized"
+// @Failure 403 {object} map[string]interface{} "Forbidden - Admin role required"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Security BearerAuth
+// @Router /projects/pending [get]
+func (h *Handler) GetPendingProjects(c *gin.Context) {
+	_, err := (&auth.Handlers{}).ExtractUserIDAndCheckPermission(c, "project:publish")
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": []string{err.Error()}})
+		return
+	}
+
+	projects, err := h.ProjectService.GetPendingProjects()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    projects,
+		"count":   len(projects),
+	})
+}
+
+
+// GetAllProjectsAdmin retrieves all projects regardless of status (Admin only)
+// @Summary Get all projects (Admin only)
+// @Description Get all projects including pending, approved, and rejected. Requires project:view permission.
+// @Tags Projects
+// @Accept json
+// @Produce json
+// @Param Authorization header string true "Bearer token (Admin only)"
+// @Success 200 {object} map[string]interface{} "List of all projects"
+// @Failure 401 {object} map[string]interface{} "Unauthorized"
+// @Failure 403 {object} map[string]interface{} "Forbidden - Admin role required"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Security BearerAuth
+// @Router /projects/all [get]
+func (h *Handler) GetAllProjectsAdmin(c *gin.Context) {
+_, err := (&auth.Handlers{}).ExtractUserIDAndCheckPermission(c, "project:view")
+if err != nil {
+c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": []string{err.Error()}})
+return
+}
+
+projects, err := h.ProjectService.GetAllProjectsAdmin()
+if err != nil {
+c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
+return
+}
+
+c.JSON(http.StatusOK, gin.H{
+"success": true,
+"data":    projects,
+"count":   len(projects),
+})
+}
+
+// ApproveProject approves a pending project (Admin only)
+// @Summary Approve a project (Admin only)
+// @Description Approve a pending project to make it published and visible to all users. Requires project:publish permission.
+// @Tags Projects
+// @Accept json
+// @Produce json
+// @Param Authorization header string true "Bearer token (Admin only)"
+// @Param projectID path int true "Project ID"
+// @Param body body models.ApproveProjectRequest false "Approval note (optional)"
+// @Success 200 {object} map[string]interface{} "Project approved successfully"
+// @Failure 400 {object} map[string]interface{} "Invalid project ID"
+// @Failure 401 {object} map[string]interface{} "Unauthorized"
+// @Failure 403 {object} map[string]interface{} "Forbidden - Admin role required"
+// @Failure 404 {object} map[string]interface{} "Project not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Security BearerAuth
+// @Router /projects/{projectID}/approve [put]
+func (h *Handler) ApproveProject(c *gin.Context) {
+	userID, err := (&auth.Handlers{}).ExtractUserIDAndCheckPermission(c, "project:publish")
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": []string{err.Error()}})
+		return
+	}
+
+	projectIDStr := c.Param("projectID")
+	projectID, err := strconv.Atoi(projectIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": []string{"Invalid Project ID"}})
+		return
+	}
+
+	if err := h.ProjectService.ApproveProject(projectID, userID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
+		return
+	}
+
+	log.Printf("Project %d approved by admin %s", projectID, userID.String())
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Project Approved Successfully",
+	})
+}
+
+// RejectProject rejects a pending project (Admin only)
+// @Summary Reject a project (Admin only)
+// @Description Reject a pending project with a reason. Requires project:publish permission.
+// @Tags Projects
+// @Accept json
+// @Produce json
+// @Param Authorization header string true "Bearer token (Admin only)"
+// @Param projectID path int true "Project ID"
+// @Param body body models.RejectProjectRequest true "Rejection reason"
+// @Success 200 {object} map[string]interface{} "Project rejected successfully"
+// @Failure 400 {object} map[string]interface{} "Invalid project ID or missing reason"
+// @Failure 401 {object} map[string]interface{} "Unauthorized"
+// @Failure 403 {object} map[string]interface{} "Forbidden - Admin role required"
+// @Failure 404 {object} map[string]interface{} "Project not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
+// @Security BearerAuth
+// @Router /projects/{projectID}/reject [put]
+func (h *Handler) RejectProject(c *gin.Context) {
+	_, err := (&auth.Handlers{}).ExtractUserIDAndCheckPermission(c, "project:publish")
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": []string{err.Error()}})
+		return
+	}
+
+	projectIDStr := c.Param("projectID")
+	projectID, err := strconv.Atoi(projectIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": []string{"Invalid Project ID"}})
+		return
+	}
+
+	var req models.RejectProjectRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": []string{err.Error()}})
+		return
+	}
+
+	if err := h.ProjectService.RejectProject(projectID, req.Reason); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
+		return
+	}
+
+	log.Printf("Project %d rejected with reason: %s", projectID, req.Reason)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Project Rejected Successfully",
+	})
+}
+

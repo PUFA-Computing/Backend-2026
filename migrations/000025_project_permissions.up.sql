@@ -1,4 +1,23 @@
--- Add project permissions
+-- Ensure permissions table exists
+CREATE TABLE IF NOT EXISTS permissions (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT now()
+);
+
+-- Ensure unique constraint exists for permissions.name
+CREATE UNIQUE INDEX IF NOT EXISTS idx_permissions_name_unique
+ON permissions(name);
+
+-- Ensure role_permissions table exists
+CREATE TABLE IF NOT EXISTS role_permissions (
+    role_id BIGINT NOT NULL,
+    permission_id BIGINT NOT NULL,
+    PRIMARY KEY (role_id, permission_id)
+);
+
+-- Insert project permissions
 INSERT INTO permissions (name, description) VALUES
     ('project:create', 'Can create projects'),
     ('project:edit', 'Can edit projects'),
@@ -22,7 +41,7 @@ SELECT 1, id FROM permissions WHERE name IN (
     'project_vote:delete',
     'project_vote:view'
 )
-ON CONFLICT (role_id, permission_id) DO NOTHING;
+ON CONFLICT DO NOTHING;
 
 -- Assign basic project permissions to Computizen role (role_id = 2)
 INSERT INTO role_permissions (role_id, permission_id)
@@ -30,4 +49,4 @@ SELECT 2, id FROM permissions WHERE name IN (
     'project:create',
     'project_vote:create'
 )
-ON CONFLICT (role_id, permission_id) DO NOTHING;
+ON CONFLICT DO NOTHING;
