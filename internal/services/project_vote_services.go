@@ -4,8 +4,78 @@ import (
 	"Backend/internal/database/app"
 	"Backend/internal/models"
 	"errors"
+	"fmt"
 	"github.com/google/uuid"
+	"strings"
 )
+
+// TeamInfoRequest represents team information for validation
+type TeamInfoRequest struct {
+	ProjectMembers   []string
+	LinkedInProfiles []string
+	Major            string
+	Batch            int
+}
+
+// ValidateTeamInfo validates the team information
+func ValidateTeamInfo(req *TeamInfoRequest) error {
+	// Check members count
+	if len(req.ProjectMembers) == 0 {
+		return errors.New("at least one project member is required")
+	}
+	if len(req.ProjectMembers) > 10 {
+		return errors.New("maximum 10 project members allowed")
+	}
+
+	// Check for empty member names
+	for i, member := range req.ProjectMembers {
+		if strings.TrimSpace(member) == "" {
+			return fmt.Errorf("project member at index %d cannot be empty", i)
+		}
+	}
+
+	// Check LinkedIn profiles match members
+	if len(req.LinkedInProfiles) != len(req.ProjectMembers) {
+		return errors.New("number of LinkedIn profiles must match number of project members")
+	}
+
+	// Validate LinkedIn URLs
+	for i, url := range req.LinkedInProfiles {
+		if !isValidLinkedInURL(url) {
+			return fmt.Errorf("invalid LinkedIn URL at index %d: %s", i, url)
+		}
+	}
+
+	return nil
+}
+
+// isValidLinkedInURL checks if a URL is a valid LinkedIn profile URL
+func isValidLinkedInURL(url string) bool {
+	url = strings.TrimSpace(url)
+	if url == "" {
+		return false
+	}
+
+	// Basic LinkedIn URL validation
+	// Accept both http and https, with or without www
+	validPrefixes := []string{
+		"https://www.linkedin.com/in/",
+		"https://linkedin.com/in/",
+		"http://www.linkedin.com/in/",
+		"http://linkedin.com/in/",
+	}
+
+	for _, prefix := range validPrefixes {
+		if strings.HasPrefix(strings.ToLower(url), prefix) {
+			// Check if there's something after the prefix
+			if len(url) > len(prefix) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
 
 type ProjectVoteService struct {
 }

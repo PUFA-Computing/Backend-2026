@@ -168,6 +168,8 @@ definitions:
       year:
         type: string
     type: object
+  models.VoteProjectRequest:
+    type: object
 host: localhost:8080
 info:
   contact:
@@ -579,7 +581,8 @@ paths:
       consumes:
       - application/json
       description: Get a paginated list of all published projects with optional filters
-        by category
+        by category. Each project includes team member information (project_members,
+        linkedin_profiles, major, batch).
       parameters:
       - description: Filter by category (Website, AI, System, etc)
         in: query
@@ -594,7 +597,7 @@ paths:
       - application/json
       responses:
         "200":
-          description: List of projects
+          description: List of projects with team information
           schema:
             additionalProperties: true
             type: object
@@ -605,8 +608,8 @@ paths:
     get:
       consumes:
       - application/json
-      description: Get detailed information about a specific project including vote
-        count
+      description: Get detailed information about a specific project including team
+        members, LinkedIn profiles, major, batch, and vote count
       parameters:
       - description: Project ID
         in: path
@@ -617,7 +620,7 @@ paths:
       - application/json
       responses:
         "200":
-          description: Project details
+          description: Project details with team information
           schema:
             properties:
               data:
@@ -627,13 +630,13 @@ paths:
               success:
                 type: boolean
             type: object
-        "400":
-          description: Invalid project ID
+        "404":
+          description: Project not found
           schema:
             additionalProperties: true
             type: object
-        "404":
-          description: Project not found
+        "500":
+          description: Internal server error
           schema:
             additionalProperties: true
             type: object
@@ -988,7 +991,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Vote for a published project. One vote per user per project.
+      description: Vote for a published project with team member information. One
+        vote per user per project.
       parameters:
       - description: Bearer token
         in: header
@@ -1000,6 +1004,12 @@ paths:
         name: projectID
         required: true
         type: integer
+      - description: Team member information
+        in: body
+        name: teamInfo
+        required: true
+        schema:
+          $ref: '#/definitions/models.VoteProjectRequest'
       produces:
       - application/json
       responses:
@@ -1111,12 +1121,71 @@ paths:
       summary: Get vote count for project (Public)
       tags:
       - Project Votes
+  /projects/admin/all:
+    get:
+      consumes:
+      - application/json
+      description: Get all projects regardless of publication status with filters.
+        Requires admin permission. Includes team member information for each project.
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Filter by category
+        in: query
+        name: category
+        type: string
+      - description: Filter by publication status (true/false)
+        in: query
+        name: is_published
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of all projects with team information
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden - Admin access required
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get all projects (Admin only)
+      tags:
+      - Projects - Admin
   /projects/create:
     post:
       consumes:
       - multipart/form-data
-      description: Create a new project with image upload. Requires authentication.
-        Project will be unpublished by default.
+      description: |-
+        Create a new project with team member information and image upload. Requires authentication. Project will be unpublished by default and requires admin approval.
+
+        **Team Member Fields (Required):**
+        - project_members: Array of team member names (1-10 members)
+        - linkedin_profiles: Array of LinkedIn profile URLs (must match number of members)
+        - major: Student major ('information_system' or 'informatics')
+        - batch: Batch year (2021-2025)
       parameters:
       - description: Bearer token
         in: header
@@ -1124,12 +1193,14 @@ paths:
         required: true
         type: string
       - description: Project data as JSON string
-        example: '{"title":"My Project","description":"Project description","category":"Website","project_url":"https://github.com/user/project"}'
+        example: '{"title":"My Awesome Project","description":"A detailed project
+          description","category":"Website","project_url":"https://github.com/user/project","project_members":["John
+          Doe","Jane Smith"],"linkedin_profiles":["https://linkedin.com/in/johndoe","https://linkedin.com/in/janesmith"],"major":"information_system","batch":2025}'
         in: formData
         name: data
         required: true
         type: string
-      - description: Project image
+      - description: Project image (JPG, PNG, max 5MB)
         in: formData
         name: file
         required: true
@@ -1143,7 +1214,7 @@ paths:
             additionalProperties: true
             type: object
         "400":
-          description: Bad request
+          description: Bad request - validation error or invalid team info
           schema:
             additionalProperties: true
             type: object

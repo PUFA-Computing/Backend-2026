@@ -33,15 +33,21 @@ func NewProjectHandler(projectService *services.ProjectService, permissionServic
 
 // CreateProject creates a new project
 // @Summary Create a new project
-// @Description Create a new project with image upload. Requires authentication. Project will be unpublished by default.
+// @Description Create a new project with team member information and image upload. Requires authentication. Project will be unpublished by default and requires admin approval.
+// @Description
+// @Description **Team Member Fields (Required):**
+// @Description - project_members: Array of team member names (1-10 members)
+// @Description - linkedin_profiles: Array of LinkedIn profile URLs (must match number of members)
+// @Description - major: Student major ('information_system' or 'informatics')
+// @Description - batch: Batch year (2021-2025)
 // @Tags Projects
 // @Accept multipart/form-data
 // @Produce json
 // @Param Authorization header string true "Bearer token"
-// @Param data formData string true "Project data as JSON string" example({"title":"My Project","description":"Project description","category":"Website","project_url":"https://github.com/user/project"})
-// @Param file formData file true "Project image"
+// @Param data formData string true "Project data as JSON string" example({"title":"My Awesome Project","description":"A detailed project description","category":"Website","project_url":"https://github.com/user/project","project_members":["John Doe","Jane Smith"],"linkedin_profiles":["https://linkedin.com/in/johndoe","https://linkedin.com/in/janesmith"],"major":"information_system","batch":2025})
+// @Param file formData file true "Project image (JPG, PNG, max 5MB)"
 // @Success 201 {object} map[string]interface{} "Project created successfully"
-// @Failure 400 {object} map[string]interface{} "Bad request"
+// @Failure 400 {object} map[string]interface{} "Bad request - validation error or invalid team info"
 // @Failure 401 {object} map[string]interface{} "Unauthorized"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Security BearerAuth
@@ -71,13 +77,28 @@ func (h *Handler) CreateProject(c *gin.Context) {
 		return
 	}
 
+	// Validate team info
+	if err := services.ValidateTeamInfo(&services.TeamInfoRequest{
+		ProjectMembers:   req.ProjectMembers,
+		LinkedInProfiles: req.LinkedInProfiles,
+		Major:            req.Major,
+		Batch:            req.Batch,
+	}); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": []string{err.Error()}})
+		return
+	}
+
 	// Create project model
 	project := &models.Project{
-		UserID:      userID,
-		Title:       req.Title,
-		Description: req.Description,
-		Category:    req.Category,
-		ProjectURL:  req.ProjectURL,
+		UserID:           userID,
+		Title:            req.Title,
+		Description:      req.Description,
+		Category:         req.Category,
+		ProjectURL:       req.ProjectURL,
+		ProjectMembers:   req.ProjectMembers,
+		LinkedInProfiles: req.LinkedInProfiles,
+		Major:            &req.Major,
+		Batch:            &req.Batch,
 	}
 
 	// Handle file upload (required)
@@ -141,14 +162,14 @@ func (h *Handler) CreateProject(c *gin.Context) {
 
 // GetProjectByID retrieves a project by ID
 // @Summary Get project by ID
-// @Description Get detailed information about a specific project including vote count
+// @Description Get detailed information about a specific project including team members, LinkedIn profiles, major, batch, and vote count
 // @Tags Projects
 // @Accept json
 // @Produce json
 // @Param projectID path int true "Project ID"
-// @Success 200 {object} object{success=bool,message=string,data=models.ProjectResponse} "Project details"
-// @Failure 400 {object} map[string]interface{} "Invalid project ID"
+// @Success 200 {object} object{success=bool,message=string,data=models.ProjectResponse} "Project details with team information"
 // @Failure 404 {object} map[string]interface{} "Project not found"
+// @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Router /projects/{projectID} [get]
 func (h *Handler) GetProjectByID(c *gin.Context) {
 	projectIDStr := c.Param("projectID")
@@ -173,13 +194,13 @@ func (h *Handler) GetProjectByID(c *gin.Context) {
 
 // GetAllProjects retrieves all projects with optional filters
 // @Summary List all projects
-// @Description Get a paginated list of all published projects with optional filters by category
+// @Description Get a paginated list of all published projects with optional filters by category. Each project includes team member information (project_members, linkedin_profiles, major, batch).
 // @Tags Projects
 // @Accept json
 // @Produce json
 // @Param category query string false "Filter by category (Website, AI, System, etc)"
 // @Param page query int false "Page number for pagination" default(1)
-// @Success 200 {object} map[string]interface{} "List of projects"
+// @Success 200 {object} map[string]interface{} "List of projects with team information"
 // @Router /projects [get]
 func (h *Handler) GetAllProjects(c *gin.Context) {
 	queryParams := make(map[string]string)
@@ -497,19 +518,22 @@ func (h *Handler) GetPendingProjects(c *gin.Context) {
 }
 
 
-// GetAllProjectsAdmin retrieves all projects regardless of status (Admin only)
+// GetAllProjectsAdmin retrieves all projects for admin
 // @Summary Get all projects (Admin only)
-// @Description Get all projects including pending, approved, and rejected. Requires project:view permission.
-// @Tags Projects
+// @Description Get all projects regardless of publication status with filters. Requires admin permission. Includes team member information for each project.
+// @Tags Projects - Admin
 // @Accept json
 // @Produce json
-// @Param Authorization header string true "Bearer token (Admin only)"
-// @Success 200 {object} map[string]interface{} "List of all projects"
+// @Param Authorization header string true "Bearer token"
+// @Param category query string false "Filter by category"
+// @Param is_published query string false "Filter by publication status (true/false)"
+// @Param page query int false "Page number" default(1)
+// @Success 200 {object} map[string]interface{} "List of all projects with team information"
 // @Failure 401 {object} map[string]interface{} "Unauthorized"
-// @Failure 403 {object} map[string]interface{} "Forbidden - Admin role required"
+// @Failure 403 {object} map[string]interface{} "Forbidden - Admin access required"
 // @Failure 500 {object} map[string]interface{} "Internal server error"
 // @Security BearerAuth
-// @Router /projects/all [get]
+// @Router /projects/admin/all [get]
 func (h *Handler) GetAllProjectsAdmin(c *gin.Context) {
 _, err := (&auth.Handlers{}).ExtractUserIDAndCheckPermission(c, "project:view")
 if err != nil {

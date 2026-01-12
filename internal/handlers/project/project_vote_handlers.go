@@ -21,12 +21,13 @@ func NewProjectVoteHandler(projectVoteService *services.ProjectVoteService) *Vot
 
 // VoteProject allows a user to vote for a project
 // @Summary Vote for a project
-// @Description Vote for a published project. One vote per user per project.
+// @Description Vote for a published project with team member information. One vote per user per project.
 // @Tags Project Votes
 // @Accept json
 // @Produce json
 // @Param Authorization header string true "Bearer token"
 // @Param projectID path int true "Project ID"
+// @Param teamInfo body models.VoteProjectRequest true "Team member information"
 // @Success 201 {object} map[string]interface{} "Vote cast successfully"
 // @Failure 400 {object} map[string]interface{} "Bad request, already voted, or project not published"
 // @Failure 401 {object} map[string]interface{} "Unauthorized"

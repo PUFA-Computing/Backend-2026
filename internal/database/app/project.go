@@ -4,6 +4,7 @@ import (
 	"Backend/internal/database"
 	"Backend/internal/models"
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/google/uuid"
 	"strconv"
@@ -12,11 +13,22 @@ import (
 // CreateProject inserts a new project into the database
 func CreateProject(project *models.Project) error {
 	query := `
-		INSERT INTO projects (user_id, title, description, category, project_url, image_url, is_published, vote_count, approved_by, approved_at, rejection_reason)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+		INSERT INTO projects (user_id, title, description, category, project_url, image_url, project_members, linkedin_profiles, major, batch, is_published, vote_count, approved_by, approved_at, rejection_reason)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 		RETURNING id, created_at, updated_at`
 
-	err := database.DB.QueryRow(
+	// Convert string arrays to JSONB
+	membersJSON, err := json.Marshal(project.ProjectMembers)
+	if err != nil {
+		return fmt.Errorf("failed to marshal project members: %w", err)
+	}
+
+	linkedInJSON, err := json.Marshal(project.LinkedInProfiles)
+	if err != nil {
+		return fmt.Errorf("failed to marshal linkedin profiles: %w", err)
+	}
+
+	err = database.DB.QueryRow(
 		context.Background(),
 		query,
 		project.UserID,
@@ -25,6 +37,10 @@ func CreateProject(project *models.Project) error {
 		project.Category,
 		project.ProjectURL,
 		project.ImageURL,
+		membersJSON,
+		linkedInJSON,
+		project.Major,
+		project.Batch,
 		project.IsPublished,
 		project.VoteCount,
 		project.ApprovedBy,
@@ -67,10 +83,12 @@ func DeleteProject(projectID int) error {
 // GetProjectByID retrieves a project by its ID
 func GetProjectByID(projectID int) (*models.Project, error) {
 	var project models.Project
+	var membersJSON, profilesJSON []byte
+
 	query := `
 		SELECT id, user_id, title, description, category, project_url, image_url, 
 		       is_published, vote_count, approved_by, approved_at, rejection_reason,
-		       created_at, updated_at
+		       created_at, updated_at, project_members, linkedin_profiles, major, batch
 		FROM projects
 		WHERE id = $1`
 
@@ -89,10 +107,21 @@ func GetProjectByID(projectID int) (*models.Project, error) {
 		&project.RejectionReason,
 		&project.CreatedAt,
 		&project.UpdatedAt,
+		&membersJSON,
+		&profilesJSON,
+		&project.Major,
+		&project.Batch,
 	)
 
 	if err != nil {
 		return nil, err
+	}
+
+	if len(membersJSON) > 0 {
+		_ = json.Unmarshal(membersJSON, &project.ProjectMembers)
+	}
+	if len(profilesJSON) > 0 {
+		_ = json.Unmarshal(profilesJSON, &project.LinkedInProfiles)
 	}
 
 	return &project, nil
@@ -101,10 +130,13 @@ func GetProjectByID(projectID int) (*models.Project, error) {
 // GetProjectWithVoteCount retrieves a project with its vote count and user information
 func GetProjectWithVoteCount(projectID int) (*models.ProjectResponse, error) {
 	var project models.ProjectResponse
+	var membersJSON, profilesJSON []byte
+
 	query := `
 		SELECT p.id, p.user_id, p.title, p.description, p.category, p.project_url, 
 		       p.image_url, p.is_published, p.vote_count, p.approved_by, p.approved_at, 
 		       p.rejection_reason, p.created_at, p.updated_at,
+		       p.project_members, p.linkedin_profiles, p.major, p.batch,
 		       CONCAT(u.first_name, ' ', u.last_name) as user_name,
 		       CONCAT(approver.first_name, ' ', approver.last_name) as approved_by_name
 		FROM projects p
@@ -127,12 +159,23 @@ func GetProjectWithVoteCount(projectID int) (*models.ProjectResponse, error) {
 		&project.RejectionReason,
 		&project.CreatedAt,
 		&project.UpdatedAt,
+		&membersJSON,
+		&profilesJSON,
+		&project.Major,
+		&project.Batch,
 		&project.UserName,
 		&project.ApprovedByName,
 	)
 
 	if err != nil {
 		return nil, err
+	}
+
+	if len(membersJSON) > 0 {
+		_ = json.Unmarshal(membersJSON, &project.ProjectMembers)
+	}
+	if len(profilesJSON) > 0 {
+		_ = json.Unmarshal(profilesJSON, &project.LinkedInProfiles)
 	}
 
 	return &project, nil
@@ -145,6 +188,7 @@ func ListProjects(queryParams map[string]string) ([]*models.ProjectResponse, int
 		SELECT p.id, p.user_id, p.title, p.description, p.category, p.project_url, 
 		       p.image_url, p.is_published, p.vote_count, p.approved_by, p.approved_at,
 		       p.rejection_reason, p.created_at, p.updated_at,
+		       p.project_members, p.linkedin_profiles, p.major, p.batch,
 		       CONCAT(u.first_name, ' ', u.last_name) as user_name,
 		       CONCAT(approver.first_name, ' ', approver.last_name) as approved_by_name
 		FROM projects p
@@ -211,6 +255,8 @@ func ListProjects(queryParams map[string]string) ([]*models.ProjectResponse, int
 	var projects []*models.ProjectResponse
 	for rows.Next() {
 		var project models.ProjectResponse
+		var membersJSON, profilesJSON []byte
+
 		err := rows.Scan(
 			&project.ID,
 			&project.UserID,
@@ -226,12 +272,24 @@ func ListProjects(queryParams map[string]string) ([]*models.ProjectResponse, int
 			&project.RejectionReason,
 			&project.CreatedAt,
 			&project.UpdatedAt,
+			&membersJSON,
+			&profilesJSON,
+			&project.Major,
+			&project.Batch,
 			&project.UserName,
 			&project.ApprovedByName,
 		)
 		if err != nil {
 			return nil, totalPages, err
 		}
+
+		if len(membersJSON) > 0 {
+			_ = json.Unmarshal(membersJSON, &project.ProjectMembers)
+		}
+		if len(profilesJSON) > 0 {
+			_ = json.Unmarshal(profilesJSON, &project.LinkedInProfiles)
+		}
+
 		projects = append(projects, &project)
 	}
 
@@ -263,6 +321,7 @@ func GetProjectsByUser(userID uuid.UUID) ([]*models.ProjectResponse, error) {
 		SELECT p.id, p.user_id, p.title, p.description, p.category, p.project_url, 
 		       p.image_url, p.is_published, p.vote_count, p.approved_by, p.approved_at,
 		       p.rejection_reason, p.created_at, p.updated_at,
+		       p.project_members, p.linkedin_profiles, p.major, p.batch,
 		       CONCAT(u.first_name, ' ', u.last_name) as user_name,
 		       CONCAT(approver.first_name, ' ', approver.last_name) as approved_by_name
 		FROM projects p
@@ -280,6 +339,8 @@ func GetProjectsByUser(userID uuid.UUID) ([]*models.ProjectResponse, error) {
 	var projects []*models.ProjectResponse
 	for rows.Next() {
 		var project models.ProjectResponse
+		var membersJSON, profilesJSON []byte
+
 		err := rows.Scan(
 			&project.ID,
 			&project.UserID,
@@ -295,12 +356,24 @@ func GetProjectsByUser(userID uuid.UUID) ([]*models.ProjectResponse, error) {
 			&project.RejectionReason,
 			&project.CreatedAt,
 			&project.UpdatedAt,
+			&membersJSON,
+			&profilesJSON,
+			&project.Major,
+			&project.Batch,
 			&project.UserName,
 			&project.ApprovedByName,
 		)
 		if err != nil {
 			return nil, err
 		}
+
+		if len(membersJSON) > 0 {
+			_ = json.Unmarshal(membersJSON, &project.ProjectMembers)
+		}
+		if len(profilesJSON) > 0 {
+			_ = json.Unmarshal(profilesJSON, &project.LinkedInProfiles)
+		}
+
 		projects = append(projects, &project)
 	}
 
@@ -321,6 +394,7 @@ func GetPendingProjects() ([]*models.ProjectResponse, error) {
 		SELECT p.id, p.user_id, p.title, p.description, p.category, p.project_url, 
 		       p.image_url, p.is_published, p.vote_count, p.approved_by, p.approved_at,
 		       p.rejection_reason, p.created_at, p.updated_at,
+		       p.project_members, p.linkedin_profiles, p.major, p.batch,
 		       CONCAT(u.first_name, ' ', u.last_name) as user_name,
 		       CONCAT(approver.first_name, ' ', approver.last_name) as approved_by_name
 		FROM projects p
@@ -338,6 +412,8 @@ func GetPendingProjects() ([]*models.ProjectResponse, error) {
 	var projects []*models.ProjectResponse
 	for rows.Next() {
 		var project models.ProjectResponse
+		var membersJSON, profilesJSON []byte
+
 		err := rows.Scan(
 			&project.ID,
 			&project.UserID,
@@ -353,12 +429,24 @@ func GetPendingProjects() ([]*models.ProjectResponse, error) {
 			&project.RejectionReason,
 			&project.CreatedAt,
 			&project.UpdatedAt,
+			&membersJSON,
+			&profilesJSON,
+			&project.Major,
+			&project.Batch,
 			&project.UserName,
 			&project.ApprovedByName,
 		)
 		if err != nil {
 			return nil, err
 		}
+
+		if len(membersJSON) > 0 {
+			_ = json.Unmarshal(membersJSON, &project.ProjectMembers)
+		}
+		if len(profilesJSON) > 0 {
+			_ = json.Unmarshal(profilesJSON, &project.LinkedInProfiles)
+		}
+
 		projects = append(projects, &project)
 	}
 
@@ -411,6 +499,7 @@ func GetAllProjectsAdmin() ([]*models.ProjectResponse, error) {
 		SELECT p.id, p.user_id, p.title, p.description, p.category, p.project_url, 
 		       p.image_url, p.is_published, p.vote_count, p.approved_by, p.approved_at,
 		       p.rejection_reason, p.created_at, p.updated_at,
+		       p.project_members, p.linkedin_profiles, p.major, p.batch,
 		       CONCAT(u.first_name, ' ', u.last_name) as user_name,
 		       CONCAT(approver.first_name, ' ', approver.last_name) as approved_by_name
 		FROM projects p
@@ -427,6 +516,8 @@ func GetAllProjectsAdmin() ([]*models.ProjectResponse, error) {
 	var projects []*models.ProjectResponse
 	for rows.Next() {
 		var project models.ProjectResponse
+		var membersJSON, profilesJSON []byte
+
 		err := rows.Scan(
 			&project.ID,
 			&project.UserID,
@@ -442,12 +533,24 @@ func GetAllProjectsAdmin() ([]*models.ProjectResponse, error) {
 			&project.RejectionReason,
 			&project.CreatedAt,
 			&project.UpdatedAt,
+			&membersJSON,
+			&profilesJSON,
+			&project.Major,
+			&project.Batch,
 			&project.UserName,
 			&project.ApprovedByName,
 		)
 		if err != nil {
 			return nil, err
 		}
+
+		if len(membersJSON) > 0 {
+			_ = json.Unmarshal(membersJSON, &project.ProjectMembers)
+		}
+		if len(profilesJSON) > 0 {
+			_ = json.Unmarshal(profilesJSON, &project.LinkedInProfiles)
+		}
+
 		projects = append(projects, &project)
 	}
 

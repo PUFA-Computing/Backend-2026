@@ -595,7 +595,7 @@ const docTemplate = `{
         },
         "/projects": {
             "get": {
-                "description": "Get a paginated list of all published projects with optional filters by category",
+                "description": "Get a paginated list of all published projects with optional filters by category. Each project includes team member information (project_members, linkedin_profiles, major, batch).",
                 "consumes": [
                     "application/json"
                 ],
@@ -623,7 +623,85 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "List of projects",
+                        "description": "List of projects with team information",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/projects/admin/all": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get all projects regardless of publication status with filters. Requires admin permission. Includes team member information for each project.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Projects - Admin"
+                ],
+                "summary": "Get all projects (Admin only)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by category",
+                        "name": "category",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by publication status (true/false)",
+                        "name": "is_published",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "List of all projects with team information",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden - Admin access required",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -639,7 +717,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Create a new project with image upload. Requires authentication. Project will be unpublished by default.",
+                "description": "Create a new project with team member information and image upload. Requires authentication. Project will be unpublished by default and requires admin approval.\n\n**Team Member Fields (Required):**\n- project_members: Array of team member names (1-10 members)\n- linkedin_profiles: Array of LinkedIn profile URLs (must match number of members)\n- major: Student major ('information_system' or 'informatics')\n- batch: Batch year (2021-2025)",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -660,7 +738,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "{\"title\":\"My Project\",\"description\":\"Project description\",\"category\":\"Website\",\"project_url\":\"https://github.com/user/project\"}",
+                        "example": "{\"title\":\"My Awesome Project\",\"description\":\"A detailed project description\",\"category\":\"Website\",\"project_url\":\"https://github.com/user/project\",\"project_members\":[\"John Doe\",\"Jane Smith\"],\"linkedin_profiles\":[\"https://linkedin.com/in/johndoe\",\"https://linkedin.com/in/janesmith\"],\"major\":\"information_system\",\"batch\":2025}",
                         "description": "Project data as JSON string",
                         "name": "data",
                         "in": "formData",
@@ -668,7 +746,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "file",
-                        "description": "Project image",
+                        "description": "Project image (JPG, PNG, max 5MB)",
                         "name": "file",
                         "in": "formData",
                         "required": true
@@ -683,7 +761,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Bad request",
+                        "description": "Bad request - validation error or invalid team info",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -871,7 +949,7 @@ const docTemplate = `{
         },
         "/projects/{projectID}": {
             "get": {
-                "description": "Get detailed information about a specific project including vote count",
+                "description": "Get detailed information about a specific project including team members, LinkedIn profiles, major, batch, and vote count",
                 "consumes": [
                     "application/json"
                 ],
@@ -893,7 +971,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Project details",
+                        "description": "Project details with team information",
                         "schema": {
                             "type": "object",
                             "properties": {
@@ -909,15 +987,15 @@ const docTemplate = `{
                             }
                         }
                     },
-                    "400": {
-                        "description": "Invalid project ID",
+                    "404": {
+                        "description": "Project not found",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
                         }
                     },
-                    "404": {
-                        "description": "Project not found",
+                    "500": {
+                        "description": "Internal server error",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true
@@ -1437,7 +1515,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Vote for a published project. One vote per user per project.",
+                "description": "Vote for a published project with team member information. One vote per user per project.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1462,6 +1540,15 @@ const docTemplate = `{
                         "name": "projectID",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "Team member information",
+                        "name": "teamInfo",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.VoteProjectRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -2325,6 +2412,9 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "models.VoteProjectRequest": {
+            "type": "object"
         }
     },
     "securityDefinitions": {
