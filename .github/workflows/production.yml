@@ -171,7 +171,7 @@ jobs:
               --name api-computing \
               --network host \
               --restart always \
-              --env-file var/www/Backend-2026/.env \
+              --env-file /var/www/Backend-2026/.env \
               ghcr.io/${{ github.actor }}/api-pufa-computing:latest
             docker image prune -f
             echo "✅ Backend deployed successfully"
