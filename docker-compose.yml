@@ -1,37 +1,14 @@
-services:
-  app:
-    build: .
-    ports:
-      - "8080:8080"
-    environment:
-      DB_HOST: ${DB_HOST}
-      DB_PORT: ${DB_PORT}
-      DB_NAME: ${DB_NAME}
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
-      REDIS_URL: ${REDIS_URL}
-      REDIS_PASS: ${REDIS_PASS:-}
-    depends_on:
-      - redis
-    restart: always
-    container_name: backend
-    networks:
-      - pufa_network
-
-  redis:
-    image: redis:alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    restart: always
-    command: redis-server --appendonly yes
-    networks:
-      - pufa_network
-
-networks:
-  pufa_network:
-    external: false
-
-volumes:
-  redis_data:
+# ============================================================
+# docker-compose.yml — Quick Reference / Entrypoint
+#
+# Pilih file yang sesuai dengan kebutuhan:
+#
+# DEVELOPMENT (hot-reload + postgres + redis exposed ke host):
+#   docker compose -f docker-compose.dev.yml up --build
+#
+# PRODUCTION (compiled binary, DB tidak exposed ke luar):
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Pastikan file .env sudah ada sebelum menjalankan compose.
+# Contoh: cp .env.example .env && nano .env
+# ============================================================

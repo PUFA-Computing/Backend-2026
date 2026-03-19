@@ -31,9 +31,11 @@ RUN apk --no-cache add ca-certificates tzdata
 WORKDIR /app
 
 # Copy only the necessary files from the builder stage
+# NOTE: .env is intentionally NOT copied — pass env vars via --env-file or docker compose
 COPY --from=builder /app/main .
-COPY --from=builder /app/.env .
 COPY --from=builder /app/migrations ./migrations
+
+EXPOSE 8080
 
 # Set the entry point to run the application
 ENTRYPOINT ["./main"]

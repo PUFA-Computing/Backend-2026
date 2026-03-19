@@ -1,0 +1,84 @@
+# ============================================================
+# docker-compose.dev.yml — Development Stack
+# Usage: docker compose -f docker-compose.dev.yml up --build
+#
+# - App: hot-reload via Air (source code mounted as volume)
+# - PostgreSQL: exposed to host (for DBeaver, psql, TablePlus)
+# - Redis: exposed to host (for redis-cli, RedisInsight)
+# ============================================================
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: backend-dev
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"
+    volumes:
+      # Mount source code for hot-reload
+      - .:/app
+      # Preserve downloaded Go modules cache
+      - go_mod_cache:/go/pkg/mod
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - pufa_dev_network
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-pufa_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-devpassword}
+      POSTGRES_DB: ${DB_NAME:-pufa_24}
+    ports:
+      # Exposed to host so you can connect via DBeaver / TablePlus / psql
+      - "5432:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-pufa_user} -d ${DB_NAME:-pufa_24}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - pufa_dev_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis-dev
+    restart: unless-stopped
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASS:-devredispass}
+    ports:
+      # Exposed to host so you can use redis-cli / RedisInsight
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASS:-devredispass}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - pufa_dev_network
+
+networks:
+  pufa_dev_network:
+    name: pufa_dev_network
+    driver: bridge
+
+volumes:
+  postgres_dev_data:
+  redis_dev_data:
+  go_mod_cache:

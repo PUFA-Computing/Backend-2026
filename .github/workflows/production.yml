@@ -163,7 +163,15 @@ jobs:
           password: ${{ secrets.SERVER_PASSWORD }}
           port: ${{ secrets.SERVER_PORT }}
           script: |
-            whoami
-            docker stop api-computing || true && docker rm api-computing || true
-            docker pull ${{ vars.IMAGE_NAME }}
-            docker run -d -p ${{ secrets.API_PORT }}:8080 --name api-computing ${{ vars.IMAGE_NAME }}
+            echo "${{ secrets.GH_GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker pull ghcr.io/${{ github.actor }}/api-pufa-computing:latest
+            docker stop api-computing || true
+            docker rm api-computing || true
+            docker run -d \
+              --name api-computing \
+              --network host \
+              --restart always \
+              --env-file /opt/pufa/backend/.env \
+              ghcr.io/${{ github.actor }}/api-pufa-computing:latest
+            docker image prune -f
+            echo "✅ Backend deployed successfully"
