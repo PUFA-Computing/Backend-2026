@@ -63,7 +63,7 @@ func tryInitRedis() {
 func main() {
 	err := godotenv.Load(".env")
 	if err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
+		log.Printf("Note: No .env file found or error reading it (%v). Using OS environment variables.", err)
 	}
 	config := configs.LoadConfig()
 
