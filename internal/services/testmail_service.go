@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"log"
 	"net/smtp"
+	"strings"
 )
 
 // TestMailService is a service for sending emails using SMTP
@@ -61,10 +62,15 @@ func (ts *TestMailService) SendVerificationEmail(to, token string, userId uuid.U
 // sendEmail sends an email using SMTP
 func (ts *TestMailService) sendEmail(toEmail, subject, body string) error {
 	log.Printf("Attempting to send email to: %s with subject: %s", toEmail, subject)
+	
+	cleanUser := strings.TrimSpace(ts.smtpUsername)
+	cleanPass := strings.TrimSpace(ts.smtpPassword)
+	
 	log.Printf("Using SMTP settings - Host: %s, Port: %s, Username: %s, SenderEmail: %s", 
-		ts.smtpHost, ts.smtpPort, ts.smtpUsername, ts.senderEmail)
+		ts.smtpHost, ts.smtpPort, cleanUser, ts.senderEmail)
+	
 	// Set up authentication information
-	auth := smtp.PlainAuth("", ts.smtpUsername, ts.smtpPassword, ts.smtpHost)
+	auth := smtp.PlainAuth("", cleanUser, cleanPass, ts.smtpHost)
 	
 	// Compose email
 	from := ts.senderEmail
@@ -85,76 +91,84 @@ func (ts *TestMailService) sendEmail(toEmail, subject, body string) error {
 	}
 	message += "\r\n" + body
 	
-	// Use STARTTLS for port 587 (Gmail's standard port)
 	log.Println("Setting up email delivery")
 	addr := fmt.Sprintf("%s:%s", ts.smtpHost, ts.smtpPort)
 	log.Printf("Connecting to SMTP server at: %s", addr)
-	
-	// Connect to the SMTP server without TLS first
-	c, err := smtp.Dial(addr)
-	if err != nil {
-		log.Printf("Error connecting to SMTP server: %v", err)
-		return fmt.Errorf("failed to connect to SMTP server: %w", err)
-	}
-	defer c.Close()
-	log.Println("Successfully connected to SMTP server")
 	
 	// Set up TLS config
 	tlsConfig := &tls.Config{
 		InsecureSkipVerify: false,
 		ServerName:         ts.smtpHost,
 	}
-	
-	// Start TLS for SMTP (STARTTLS)
-	if ts.useTLS {
-		log.Println("Starting TLS negotiation (STARTTLS)")
-		if err = c.StartTLS(tlsConfig); err != nil {
-			log.Printf("Error during STARTTLS: %v", err)
-			return fmt.Errorf("STARTTLS failed: %w", err)
+
+	var c *smtp.Client
+	var err error
+
+	if ts.smtpPort == "465" {
+		// Implicit SSL for port 465
+		log.Println("Using explicit TLS (SMTPS) on port 465")
+		conn, errConn := tls.Dial("tcp", addr, tlsConfig)
+		if errConn != nil {
+			log.Printf("Error connecting to SMTP via TLS: %v", errConn)
+			return fmt.Errorf("failed to connect to SMTP via TLS: %w", errConn)
 		}
-		log.Println("TLS negotiation successful")
-		
-		// Auth
-		log.Println("Authenticating with SMTP server")
-		if err = c.Auth(auth); err != nil {
-			log.Printf("SMTP authentication error: %v", err)
-			return fmt.Errorf("SMTP authentication failed: %w", err)
-		}
-		log.Println("SMTP authentication successful")
-		
-		// Set the sender and recipient
-		if err = c.Mail(from); err != nil {
-			return err
-		}
-		for _, recipient := range to {
-			if err = c.Rcpt(recipient); err != nil {
-				return err
-			}
-		}
-		
-		// Send the email body
-		w, err := c.Data()
+		c, err = smtp.NewClient(conn, ts.smtpHost)
 		if err != nil {
-			return err
+			log.Printf("Error creating SMTP client: %v", err)
+			return fmt.Errorf("failed to create SMTP client: %w", err)
 		}
-		
-		_, err = w.Write([]byte(message))
-		if err != nil {
-			return err
-		}
-		
-		err = w.Close()
-		if err != nil {
-			return err
-		}
-		
-		return c.Quit()
 	} else {
-		// This code path is no longer used since we're using a unified approach above
-		log.Println("WARNING: This code path should not be reached")
-		return fmt.Errorf("invalid code path - email sending implementation has changed")
+		// Explicit TLS (STARTTLS) for port 587
+		log.Println("Using STARTTLS on port " + ts.smtpPort)
+		c, err = smtp.Dial(addr)
+		if err != nil {
+			log.Printf("Error connecting to SMTP server: %v", err)
+			return fmt.Errorf("failed to connect to SMTP server: %w", err)
+		}
+		if ts.useTLS {
+			if err = c.StartTLS(tlsConfig); err != nil {
+				log.Printf("Error during STARTTLS: %v", err)
+				return fmt.Errorf("STARTTLS failed: %w", err)
+			}
+			log.Println("TLS negotiation successful")
+		}
+	}
+	defer c.Close()
+
+	log.Println("Authenticating with SMTP server")
+	if err = c.Auth(auth); err != nil {
+		log.Printf("SMTP authentication error: %v", err)
+		return fmt.Errorf("SMTP authentication failed: %w", err)
+	}
+	log.Println("SMTP authentication successful")
+	
+	// Set the sender and recipient
+	if err = c.Mail(from); err != nil {
+		return err
+	}
+	for _, recipient := range to {
+		if err = c.Rcpt(recipient); err != nil {
+			return err
+		}
 	}
 	
+	// Send the email body
+	w, err := c.Data()
+	if err != nil {
+		return err
+	}
+	
+	_, err = w.Write([]byte(message))
+	if err != nil {
+		return err
+	}
+	
+	err = w.Close()
+	if err != nil {
+		return err
+	}
+	
+	c.Quit()
 	log.Printf("Email to %s sent successfully", toEmail)
 	return nil
 }
