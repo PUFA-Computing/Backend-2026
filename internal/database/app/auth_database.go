@@ -70,7 +70,11 @@ func AuthenticateUser(usernameOrEmail string) (*models.User, error) {
 	// Set default values for fields that might be needed but aren't critical for login
 	user.FirstName = ""
 	user.LastName = ""
-	user.Email = usernameOrEmail
+	// NOTE: Do NOT set user.Email = usernameOrEmail here, because if the user
+	// logged in with their username (not email), this would set a username string
+	// into the Email field, causing verification emails to be sent to the wrong address.
+	// The correct email will be fetched from the DB in the query below.
+	user.Email = ""
 	user.StudentID = ""
 	user.Major = ""
 	user.Year = ""
