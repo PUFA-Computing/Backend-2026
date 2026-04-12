@@ -132,16 +132,16 @@ func (h *Handlers) RegisterUser(c *gin.Context) {
 		return
 	}
 
-	// Send verification email asynchronously so the UI doesn't freeze
-	go func(email, token string, id uuid.UUID) {
-		log.Printf("Sending verification email asynchronously to: %s", email)
-		if err := h.EmailService.SendVerificationEmail(email, token, id); err != nil {
-			log.Printf("Failed to send verification email: %v", err)
-			log.Println("Continuing with registration despite email sending failure")
-		} else {
-			log.Println("Verification email sent successfully")
-		}
-	}(newUser.Email, token, newUser.ID)
+	log.Printf("Sending verification email to: %s", newUser.Email)
+	if err := h.EmailService.SendVerificationEmail(newUser.Email, token, newUser.ID); err != nil {
+		log.Printf("SMTP Delivery Failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false, 
+			"message": "Registration successful, but failed to deliver verification email. Error: " + err.Error(),
+		})
+		return
+	}
+	log.Println("Verification email sent successfully via SMTP")
 
 	log.Println("Registration process completed successfully")
 	c.JSON(http.StatusCreated, gin.H{
@@ -267,13 +267,15 @@ func (h *Handlers) Login(c *gin.Context) {
 			return
 		}
 
-		// Send verification email asynchronously
-		go func(email, token string, id uuid.UUID) {
-			log.Printf("Resending verification email asynchronously to: %s", email)
-			if err := h.EmailService.SendVerificationEmail(email, token, id); err != nil {
-				log.Printf("Failed to resend verification email: %v", err)
-			}
-		}(user.Email, token, user.ID)
+		log.Printf("Resending verification email synchronously to: %s", user.Email)
+		if err := h.EmailService.SendVerificationEmail(user.Email, token, user.ID); err != nil {
+			log.Printf("SMTP Resend Failed: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false, 
+				"message": "Failed to resend verification email via SMTP: " + err.Error(),
+			})
+			return
+		}
 
 		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Email not verified, verification email sent"})
 		return
