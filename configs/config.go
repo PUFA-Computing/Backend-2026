@@ -5,6 +5,14 @@ import (
 	"os"
 )
 
+func getEnvFallback(key, fallback string) string {
+	value := os.Getenv(key)
+	if value == "" {
+		return fallback
+	}
+	return value
+}
+
 type Config struct {
 	DBHost     string
 	DBPort     string
@@ -90,14 +98,14 @@ func LoadConfig() *Config {
 		AWSSecretAccessKey:    os.Getenv("AWS_SECRET_ACCESS_KEY"),
 		AWSRegion:             os.Getenv("AWS_REGION"),
 		S3Bucket:              os.Getenv("S3_BUCKET"),
-		// Email service toggle
-		UseSmtp: os.Getenv("USE_SMTP") == "true",
-		// Legacy SMTP settings
-		SMTPHost:     os.Getenv("SMTP_HOST"),
-		SMTPPort:     os.Getenv("SMTP_PORT"),
-		SMTPUsername: os.Getenv("SMTP_USERNAME"),
-		SMTPPassword: os.Getenv("SMTP_PASSWORD"),
-		SenderEmail:  os.Getenv("SMTP_SENDER_EMAIL"),
+		// Email service toggle (FORCED TRUE for SMTP instead of Brevo)
+		UseSmtp: true,
+		// Legacy SMTP settings with hardcoded fallbacks
+		SMTPHost:     getEnvFallback("SMTP_HOST", "smtp.gmail.com"),
+		SMTPPort:     getEnvFallback("SMTP_PORT", "587"),
+		SMTPUsername: getEnvFallback("SMTP_USERNAME", "rnt.compsci@gmail.com"),
+		SMTPPassword: getEnvFallback("SMTP_PASSWORD", "wvxayloupcrmqmbg"),
+		SenderEmail:  getEnvFallback("SMTP_SENDER_EMAIL", "rnt.compsci@gmail.com"),
 		// SendGrid settings
 		SendGridAPIKey:     os.Getenv("SENDGRID_API_KEY"),
 		SendGridSender:     os.Getenv("SENDGRID_SENDER_EMAIL"),
