@@ -73,12 +73,13 @@ func (ts *TestMailService) sendEmail(toEmail, subject, body string) error {
 	auth := smtp.PlainAuth("", cleanUser, cleanPass, ts.smtpHost)
 	
 	// Compose email
-	from := fmt.Sprintf("PUFA Computer Science <%s>", ts.senderEmail)
+	fromHeader := fmt.Sprintf("PUFA Computer Science <%s>", ts.senderEmail)
+	fromEnvelope := ts.senderEmail
 	to := []string{toEmail}
 	
 	// Setup email headers
 	headers := make(map[string]string)
-	headers["From"] = from
+	headers["From"] = fromHeader
 	headers["To"] = toEmail
 	headers["Subject"] = subject
 	headers["MIME-Version"] = "1.0"
@@ -142,8 +143,8 @@ func (ts *TestMailService) sendEmail(toEmail, subject, body string) error {
 	}
 	log.Println("SMTP authentication successful")
 	
-	// Set the sender and recipient
-	if err = c.Mail(from); err != nil {
+	// Set the sender and recipient envelope
+	if err = c.Mail(fromEnvelope); err != nil {
 		return err
 	}
 	for _, recipient := range to {
