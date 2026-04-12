@@ -64,7 +64,7 @@ func (ts *TestMailService) sendEmail(toEmail, subject, body string) error {
 	log.Printf("Attempting to send email to: %s with subject: %s", toEmail, subject)
 	
 	cleanUser := strings.TrimSpace(ts.smtpUsername)
-	cleanPass := strings.TrimSpace(ts.smtpPassword)
+	cleanPass := strings.ReplaceAll(ts.smtpPassword, " ", "")
 	
 	log.Printf("Using SMTP settings - Host: %s, Port: %s, Username: %s, SenderEmail: %s", 
 		ts.smtpHost, ts.smtpPort, cleanUser, ts.senderEmail)
@@ -73,7 +73,7 @@ func (ts *TestMailService) sendEmail(toEmail, subject, body string) error {
 	auth := smtp.PlainAuth("", cleanUser, cleanPass, ts.smtpHost)
 	
 	// Compose email
-	from := ts.senderEmail
+	from := fmt.Sprintf("PUFA Computer Science <%s>", ts.senderEmail)
 	to := []string{toEmail}
 	
 	// Setup email headers
@@ -185,7 +185,7 @@ func generateOTPEmailHTML(otpCode string) string {
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
     <div style="text-align: center; margin-bottom: 20px;">
-        <img src="https://sg.pufacomputing.live/Logo%20Puma.png" alt="PUFA Computing Logo" width="150" style="max-width: 100%;">
+        <img src="https://compsci.president.ac.id/logo/PUFA_Computing.png" alt="PUFA Computing Logo" width="150" style="max-width: 100%;">
     </div>
     <div style="background-color: #f9f9f9; border-radius: 5px; padding: 20px; border-top: 3px solid #003CE5;">
         <h1 style="color: #000; text-align: center; margin-bottom: 20px;">Your OTP Code</h1>
@@ -215,7 +215,7 @@ func generateVerificationEmailHTML(verificationLink string) string {
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
     <div style="text-align: center; margin-bottom: 20px;">
-        <img src="https://sg.pufacomputing.live/Logo%20Puma.png" alt="PUFA Computing Logo" width="150" style="max-width: 100%;">
+        <img src="https://compsci.president.ac.id/logo/PUFA_Computing.png" alt="PUFA Computing Logo" width="150" style="max-width: 100%;">
     </div>
     <div style="background-color: #f9f9f9; border-radius: 5px; padding: 20px; border-top: 3px solid #003CE5;">
         <h1 style="color: #000; text-align: center; margin-bottom: 20px;">Verify Your Email</h1>
