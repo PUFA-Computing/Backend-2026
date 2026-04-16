@@ -31,7 +31,9 @@ func NewAuthService() *AuthService {
 }
 
 func (as *AuthService) RegisterUser(user *models.User) error {
-	// Email validation
+	// Email validation – only @student.president.ac.id domain is accepted.
+	// Hunter.io already guarantees delivery-ability for this domain, so no SMTP
+	// verification email is sent; the account is activated immediately.
 	if err := as.ValidateEmail(user.Email); err != nil {
 		return err
 	}
@@ -39,17 +41,20 @@ func (as *AuthService) RegisterUser(user *models.User) error {
 	user.ID = uuid.New()
 	user.RoleID = 2
 	user.Gender = "male"
+	user.EmailVerified = true           // auto-verified – no SMTP step
+	user.EmailVerificationToken = ""   // not needed
 
 	user.ProfilePicture = "https://sg.pufacomputing.live/Assets/male.jpeg"
 
-	// Set major based on studentID
-	if user.StudentID[:3] == "001" {
+	// Set major based on studentID prefix
+	switch user.StudentID[:3] {
+	case "001":
 		user.Major = "informatics"
-	} else if user.StudentID[:3] == "012" {
+	case "012":
 		user.Major = "information system"
-	} else if user.StudentID[:3] == "013" {
+	case "013":
 		user.Major = "visual communication design"
-	} else if user.StudentID[:3] == "025" {
+	case "025":
 		user.Major = "interior design"
 	}
 
@@ -57,11 +62,9 @@ func (as *AuthService) RegisterUser(user *models.User) error {
 	if err != nil {
 		return err
 	}
-
 	user.Password = string(hashedPassword)
 
-	err = app.CreateUser(user)
-	if err != nil {
+	if err = app.CreateUser(user); err != nil {
 		return err
 	}
 

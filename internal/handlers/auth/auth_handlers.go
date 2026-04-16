@@ -110,43 +110,31 @@ func (h *Handlers) RegisterUser(c *gin.Context) {
 		return
 	}
 
-	// Email Verification Token
+	// Email Verification Token is generated but not sent via SMTP.
+	// All @student.president.ac.id accounts are auto-verified on creation.
 	token := utils.GenerateRandomString(32)
 	newUser.EmailVerificationToken = token
 
 	if err := h.AuthService.RegisterUser(&newUser); err != nil {
-		// Check if it's a validation error (which should be a 400) or a server error (500)
-		if strings.Contains(err.Error(), "email") || 
-		   strings.Contains(err.Error(), "invalid") || 
-		   strings.Contains(err.Error(), "disposable") || 
-		   strings.Contains(err.Error(), "verify") || 
-		   strings.Contains(err.Error(), "validation") {
-			// This is likely a validation error, return 400 Bad Request
+		// Distinguish validation errors (400) from server errors (500)
+		if strings.Contains(err.Error(), "email") ||
+			strings.Contains(err.Error(), "invalid") ||
+			strings.Contains(err.Error(), "disposable") ||
+			strings.Contains(err.Error(), "verify") ||
+			strings.Contains(err.Error(), "validation") {
 			log.Printf("Email validation error: %v", err)
 			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
 		} else {
-			// This is some other server error, return 500 Internal Server Error
 			log.Printf("Server error during registration: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
 		}
 		return
 	}
 
-	log.Printf("Sending verification email to: %s", newUser.Email)
-	if err := h.EmailService.SendVerificationEmail(newUser.Email, token, newUser.ID); err != nil {
-		log.Printf("SMTP Delivery Failed: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"success": false, 
-			"message": "Registration successful, but failed to deliver verification email. Error: " + err.Error(),
-		})
-		return
-	}
-	log.Println("Verification email sent successfully via SMTP")
-
-	log.Println("Registration process completed successfully")
+	log.Println("Registration completed successfully – account auto-verified (no SMTP)")
 	c.JSON(http.StatusCreated, gin.H{
 		"success": true,
-		"message": "User Created Successfully",
+		"message": "Account created successfully! You can now sign in with your email and password.",
 	})
 }
 
@@ -238,48 +226,10 @@ func (h *Handlers) Login(c *gin.Context) {
 
 	}
 
-	// No need to validate email during login as it was already validated during registration
+	// Account is always auto-verified on creation (no email gate).
+	// This block is intentionally removed – all registered users can log in directly.
 
-	// Check isEmailVerified
-	isEmailVerified, err := h.AuthService.IsEmailVerified(loginRequest.Username)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Verification Email Sent, Check Your Email"})
-		return
-	}
-
-	if !isEmailVerified {
-		// Send verification email
-		user, err := h.AuthService.GetUserByUsernameOrEmail(loginRequest.Username)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
-			return
-		}
-
-		if user == nil {
-			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": []string{"User not found"}})
-			return
-		}
-
-		token := utils.GenerateRandomString(32)
-
-		if err := h.AuthService.UpdateEmailVerificationToken(user.Email, token); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
-			return
-		}
-
-		log.Printf("Resending verification email synchronously to: %s", user.Email)
-		if err := h.EmailService.SendVerificationEmail(user.Email, token, user.ID); err != nil {
-			log.Printf("SMTP Resend Failed: %v", err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"success": false, 
-				"message": "Failed to resend verification email via SMTP: " + err.Error(),
-			})
-			return
-		}
-
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Email not verified, verification email sent"})
-		return
-	}
+	log.Printf("Email verification check skipped – accounts are auto-verified at registration")
 
 	token, err := utils.GenerateJWTToken(user.ID, os.Getenv("JWT_SECRET_KEY"))
 	if err != nil {

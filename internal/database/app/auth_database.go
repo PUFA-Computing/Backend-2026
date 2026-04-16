@@ -12,9 +12,11 @@ import (
 
 func CreateUser(user *models.User) error {
 
+	// email_verified is set to TRUE directly since Hunter.io already validates the
+	// @student.president.ac.id domain during registration – no SMTP step needed.
 	query := `
-		INSERT INTO users (id, username, password, first_name, middle_name, last_name, email, student_id, major, year, role_id, email_verification_token, institution_name, gender)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`
+		INSERT INTO users (id, username, password, first_name, middle_name, last_name, email, student_id, major, year, role_id, email_verification_token, institution_name, gender, email_verified)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, TRUE)`
 	_, err := database.DB.Exec(
 		context.Background(),
 		query,

@@ -44,16 +44,11 @@ func SetupRoutes() *gin.Engine {
 	r.MaxMultipartMemory = 10 << 20 // 10 MB
 
 	r.Use(cors.New(cors.Config{
-		AllowOrigins: []string{
-			"https://computing.president.ac.id",
-			"https://staging.computing.president.ac.id",
-			"https://compsci.president.ac.id",
-			"https://staging.compsci.president.ac.id",
-			"http://localhost:3000",
-			"http://localhost:3001", // Added for development
+		AllowOriginFunc: func(origin string) bool {
+			return true
 		},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "Access-Control-Allow-Origin", "Access-Control-Allow-Headers"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "Access-Control-Allow-Origin", "Access-Control-Allow-Headers", "X-Requested-With"},
 		ExposeHeaders:    []string{"Content-Length", "Content-Type"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
