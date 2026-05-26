@@ -56,11 +56,13 @@ func SetupRoutes() *gin.Engine {
 
 	// Add request timeout middleware (30 seconds)
 	r.Use(middleware.TimeoutMiddleware(30 * time.Second))
-	// Rewrite legacy image URLs to the active public URL (must be before gzip)
-	r.Use(middleware.ImageURLRewrite())
-
 	// Add gzip compression for responses (reduces bandwidth by 60-70%)
 	r.Use(gzip.Gzip(gzip.DefaultCompression))
+
+	// Rewrite legacy image URLs to the active public URL
+	// MUST be registered AFTER gzip so it operates on the raw, uncompressed body from the handlers
+	// before it gets compressed by the gzip middleware.
+	r.Use(middleware.ImageURLRewrite())
 
 	// Increase rate limits for high traffic
 	maxTokens := 2000 // Doubled from 1000 to handle 100+ concurrent users
