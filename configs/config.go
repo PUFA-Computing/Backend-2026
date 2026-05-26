@@ -36,6 +36,8 @@ type Config struct {
 	AWSRegion          string
 	S3UsePathStyle     bool
 	S3Bucket           string
+	R2PublicURL        string
+	S3PublicURL        string
 
 	// Email service toggle
 	UseSmtp bool
@@ -98,6 +100,8 @@ func LoadConfig() *Config {
 		AWSSecretAccessKey:    os.Getenv("AWS_SECRET_ACCESS_KEY"),
 		AWSRegion:             os.Getenv("AWS_REGION"),
 		S3Bucket:              os.Getenv("S3_BUCKET"),
+		R2PublicURL:           os.Getenv("R2_PUBLIC_URL"),
+		S3PublicURL:           os.Getenv("S3_PUBLIC_URL"),
 		// Email service toggle (FORCED TRUE for SMTP instead of Brevo)
 		UseSmtp: true,
 		// Legacy SMTP settings with hardcoded fallbacks

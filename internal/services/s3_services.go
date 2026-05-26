@@ -236,9 +236,16 @@ func (s *S3Service) GetFileR2(directory, slug string) (string, error) {
 	// Add a timestamp to prevent browser caching
 	timestamp := time.Now().UnixNano() / int64(time.Millisecond)
 
-	// Use the public URL format that works with your Cloudflare R2 setup
+	// Use the public URL from the environment config
+	cfg := configs.LoadConfig()
+	baseURL := cfg.R2PublicURL
+	if baseURL == "" {
+		baseURL = "https://pufacompsci.online" // Default fallback
+	}
+	baseURL = strings.TrimRight(baseURL, "/")
+
 	// Add a cache-busting parameter to force browser to reload the image
-	url := fmt.Sprintf("https://pufacompsci.my.id/%s?t=%d", key, timestamp)
+	url := fmt.Sprintf("%s/%s?t=%d", baseURL, key, timestamp)
 	fmt.Printf("Generated URL with cache-busting: %s\n", url)
 	return url, nil
 }

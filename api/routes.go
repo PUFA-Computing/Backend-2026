@@ -56,7 +56,9 @@ func SetupRoutes() *gin.Engine {
 
 	// Add request timeout middleware (30 seconds)
 	r.Use(middleware.TimeoutMiddleware(30 * time.Second))
-	
+	// Rewrite legacy image URLs to the active public URL (must be before gzip)
+	r.Use(middleware.ImageURLRewrite())
+
 	// Add gzip compression for responses (reduces bandwidth by 60-70%)
 	r.Use(gzip.Gzip(gzip.DefaultCompression))
 
@@ -221,7 +223,7 @@ func SetupRoutes() *gin.Engine {
 	eventRoutes := api.Group("/event")
 	{
 		eventRoutes.GET("/:eventID", eventHandlers.GetEventBySlug)
-		eventRoutes.GET("/", eventHandlers.ListEvents)
+		eventRoutes.GET("", eventHandlers.ListEvents)
 		eventRoutes.GET("/:eventID/total-participant", eventHandlers.TotalRegisteredUsers)
 		eventRoutes.Use(middleware.TokenMiddleware())
 		eventRoutes.POST("/create", eventHandlers.CreateEvent)
@@ -233,7 +235,7 @@ func SetupRoutes() *gin.Engine {
 
 	newsRoutes := api.Group("/news")
 	{
-		newsRoutes.GET("/", newsHandlers.ListNews)
+		newsRoutes.GET("", newsHandlers.ListNews)
 		newsRoutes.GET("/:newsID", newsHandlers.GetNewsBySlug)
 		newsRoutes.Use(middleware.TokenMiddleware())
 		newsRoutes.POST("/create", newsHandlers.CreateNews)
@@ -245,7 +247,7 @@ func SetupRoutes() *gin.Engine {
 	roleRoutes := api.Group("/roles")
 	{
 		roleRoutes.Use(middleware.TokenMiddleware())
-		roleRoutes.GET("/", roleHandlers.ListRoles)
+		roleRoutes.GET("", roleHandlers.ListRoles)
 		roleRoutes.POST("/create", roleHandlers.CreateRole)
 		roleRoutes.GET("/:roleID", roleHandlers.GetRoleByID)
 		roleRoutes.PUT("/:roleID/edit", roleHandlers.EditRole)
@@ -262,7 +264,7 @@ func SetupRoutes() *gin.Engine {
 
 	aspirationRoutes := api.Group("/aspirations")
 	{
-		aspirationRoutes.GET("/", aspirationHandlers.GetAspirations)
+		aspirationRoutes.GET("", aspirationHandlers.GetAspirations)
 		aspirationRoutes.GET("/:id", aspirationHandlers.GetAspirationByID)
 		aspirationRoutes.Use(middleware.TokenMiddleware())
 		aspirationRoutes.POST("/create", aspirationHandlers.CreateAspiration)
@@ -275,7 +277,7 @@ func SetupRoutes() *gin.Engine {
 
 	versionRoutes := api.Group("/version")
 	{
-		versionRoutes.GET("/", versionHandlers.GetVersion)
+		versionRoutes.GET("", versionHandlers.GetVersion)
 		versionRoutes.GET("/changelog", versionHandlers.GetChangelog)
 	}
 
@@ -306,7 +308,7 @@ func SetupRoutes() *gin.Engine {
 		voteRoutes.GET("/status", voteHandlers.GetVoteStatus)
 		voteRoutes.GET("/my-vote", voteHandlers.GetMyVote)
 		voteRoutes.GET("/can-vote", voteHandlers.CheckCanVote)
-		voteRoutes.GET("/", voteHandlers.ListVotes)
+		voteRoutes.GET("", voteHandlers.ListVotes)
 		voteRoutes.GET("/candidate/:candidateID", voteHandlers.GetVotesByCandidateID)
 		voteRoutes.DELETE("/:voteID/delete", voteHandlers.DeleteVote)
 	}
