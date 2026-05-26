@@ -26,6 +26,9 @@ func CheckVersion(version string) (bool, error) {
 	var latestVersion string
 	err := database.DB.QueryRow(context.Background(), "SELECT latest_version FROM version_info").Scan(&latestVersion)
 	if err != nil {
+		if err.Error() == "no rows in result set" {
+			return false, nil
+		}
 		return false, err
 	}
 
@@ -53,9 +56,15 @@ func GetChangeLog() ([]models.ChangelogEntry, error) {
 }
 
 func UpdateLatestVersion(version string) error {
-	_, err := database.DB.Exec(context.Background(), "UPDATE version_info SET latest_version = $1", version)
+	result, err := database.DB.Exec(context.Background(), "UPDATE version_info SET latest_version = $1", version)
 	if err != nil {
 		return err
+	}
+	if result.RowsAffected() == 0 {
+		_, err = database.DB.Exec(context.Background(), "INSERT INTO version_info (latest_version, changelog) VALUES ($1, '[]')", version)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -64,7 +73,11 @@ func UpdateChangelog(version string, changelog string) error {
 	var existingChangelog []models.ChangelogEntry
 	err := database.DB.QueryRow(context.Background(), "SELECT changelog FROM version_info").Scan(&existingChangelog)
 	if err != nil {
-		return err
+		if err.Error() == "no rows in result set" {
+			existingChangelog = []models.ChangelogEntry{}
+		} else {
+			return err
+		}
 	}
 
 	// Append new changelog entry
@@ -78,9 +91,15 @@ func UpdateChangelog(version string, changelog string) error {
 	}
 
 	// Update the database
-	_, err = database.DB.Exec(context.Background(), "UPDATE version_info SET changelog = $1", updatedChangelog)
+	result, err := database.DB.Exec(context.Background(), "UPDATE version_info SET changelog = $1", updatedChangelog)
 	if err != nil {
 		return err
+	}
+	if result.RowsAffected() == 0 {
+		_, err = database.DB.Exec(context.Background(), "INSERT INTO version_info (latest_version, changelog) VALUES ('', $1)", updatedChangelog)
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

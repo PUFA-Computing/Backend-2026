@@ -50,7 +50,9 @@ func (vs *VersionService) FetchVersion() (*models.GithubVersion, error) {
 	}
 
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("Authorization", "Bearer "+vs.token)
+	if vs.token != "" {
+		req.Header.Set("Authorization", "Bearer "+vs.token)
+	}
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 
 	resp, err := vs.client.Do(req)
