@@ -1,6 +1,7 @@
 package project
 
 import (
+	"Backend/internal/handlers/auth"
 	"Backend/internal/services"
 	"Backend/pkg/utils"
 	"github.com/gin-gonic/gin"
