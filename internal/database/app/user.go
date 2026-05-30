@@ -14,30 +14,32 @@ import (
 func GetUserByUsernameOrEmail(username string) (*models.User, error) {
 	var user models.User
 	var userID string
-	
-	// Use sql.Null types for all nullable fields
+
+	// Use sql.Null types for all nullable fields (password/student fields
+	// became nullable in migration 000029 to support Google-only accounts).
 	var middleName, institutionName, studentIDVerification sql.NullString
 	var twoFAImage, twoFASecret, emailVerificationToken, passwordResetToken sql.NullString
+	var password, studentID, major, year sql.NullString
 	var dateOfBirth, passwordResetExpires sql.NullTime
 	var emailVerified, studentIDVerified, twoFAEnabled sql.NullBool
-	
+
 	// Log the query we're about to execute
 	log.Printf("Executing GetUserByUsernameOrEmail query for: %s", username)
-	
+
 	// Use a simpler query with only the columns we know exist in the database
-	query := `SELECT 
-		id, username, password, first_name, middle_name, last_name, email, 
-		student_id, major, profile_picture, date_of_birth, role_id, created_at, updated_at, 
-		year, institution_name, gender, 
-		email_verified, email_verification_token, password_reset_token, password_reset_expires, 
-		student_id_verified, student_id_verification, 
-		twofa_enabled, twofa_image, twofa_secret 
+	query := `SELECT
+		id, username, password, first_name, middle_name, last_name, email,
+		student_id, major, profile_picture, date_of_birth, role_id, created_at, updated_at,
+		year, institution_name, gender,
+		email_verified, email_verification_token, password_reset_token, password_reset_expires,
+		student_id_verified, student_id_verification,
+		twofa_enabled, twofa_image, twofa_secret
 		FROM users WHERE username = $1 OR email = $1`
-	
+
 	err := database.DB.QueryRow(context.Background(), query, username).Scan(
-		&userID, &user.Username, &user.Password, &user.FirstName, &middleName, &user.LastName, &user.Email,
-		&user.StudentID, &user.Major, &user.ProfilePicture, &dateOfBirth, &user.RoleID, &user.CreatedAt,
-		&user.UpdatedAt, &user.Year, &institutionName, &user.Gender,
+		&userID, &user.Username, &password, &user.FirstName, &middleName, &user.LastName, &user.Email,
+		&studentID, &major, &user.ProfilePicture, &dateOfBirth, &user.RoleID, &user.CreatedAt,
+		&user.UpdatedAt, &year, &institutionName, &user.Gender,
 		&emailVerified, &emailVerificationToken, &passwordResetToken, &passwordResetExpires,
 		&studentIDVerified, &studentIDVerification,
 		&twoFAEnabled, &twoFAImage, &twoFASecret)
@@ -104,7 +106,20 @@ func GetUserByUsernameOrEmail(username string) (*models.User, error) {
 	if twoFASecret.Valid {
 		user.TwoFASecret = &twoFASecret.String
 	}
-	
+
+	if password.Valid {
+		user.Password = password.String
+	}
+	if studentID.Valid {
+		user.StudentID = studentID.String
+	}
+	if major.Valid {
+		user.Major = major.String
+	}
+	if year.Valid {
+		user.Year = year.String
+	}
+
 	log.Printf("Successfully retrieved user: %s", user.Username)
 	return &user, nil
 }
@@ -132,30 +147,31 @@ func IsEmailExists(email string) (bool, error) {
 func GetUserByUsername(username string) (*models.User, error) {
 	var user models.User
 	var userID string
-	
+
 	// Use sql.Null types for all nullable fields
 	var middleName, institutionName, studentIDVerification sql.NullString
 	var twoFAImage, twoFASecret, emailVerificationToken, passwordResetToken sql.NullString
+	var password, studentID, major, year sql.NullString
 	var dateOfBirth, passwordResetExpires sql.NullTime
 	var emailVerified, studentIDVerified, twoFAEnabled sql.NullBool
-	
+
 	// Log the query we're about to execute
 	log.Printf("Executing GetUserByUsername query for: %s", username)
-	
+
 	// Use a simpler query with only the columns we know exist in the database
-	query := `SELECT 
-		id, username, password, first_name, middle_name, last_name, email, 
-		student_id, major, profile_picture, date_of_birth, role_id, created_at, updated_at, 
-		year, institution_name, gender, 
-		email_verified, email_verification_token, password_reset_token, password_reset_expires, 
-		student_id_verified, student_id_verification, 
-		twofa_enabled, twofa_image, twofa_secret 
+	query := `SELECT
+		id, username, password, first_name, middle_name, last_name, email,
+		student_id, major, profile_picture, date_of_birth, role_id, created_at, updated_at,
+		year, institution_name, gender,
+		email_verified, email_verification_token, password_reset_token, password_reset_expires,
+		student_id_verified, student_id_verification,
+		twofa_enabled, twofa_image, twofa_secret
 		FROM users WHERE username = $1`
-	
+
 	err := database.DB.QueryRow(context.Background(), query, username).Scan(
-		&userID, &user.Username, &user.Password, &user.FirstName, &middleName, &user.LastName, &user.Email,
-		&user.StudentID, &user.Major, &user.ProfilePicture, &dateOfBirth, &user.RoleID, &user.CreatedAt,
-		&user.UpdatedAt, &user.Year, &institutionName, &user.Gender,
+		&userID, &user.Username, &password, &user.FirstName, &middleName, &user.LastName, &user.Email,
+		&studentID, &major, &user.ProfilePicture, &dateOfBirth, &user.RoleID, &user.CreatedAt,
+		&user.UpdatedAt, &year, &institutionName, &user.Gender,
 		&emailVerified, &emailVerificationToken, &passwordResetToken, &passwordResetExpires,
 		&studentIDVerified, &studentIDVerification,
 		&twoFAEnabled, &twoFAImage, &twoFASecret)
@@ -222,7 +238,20 @@ func GetUserByUsername(username string) (*models.User, error) {
 	if twoFASecret.Valid {
 		user.TwoFASecret = &twoFASecret.String
 	}
-	
+
+	if password.Valid {
+		user.Password = password.String
+	}
+	if studentID.Valid {
+		user.StudentID = studentID.String
+	}
+	if major.Valid {
+		user.Major = major.String
+	}
+	if year.Valid {
+		user.Year = year.String
+	}
+
 	log.Printf("Successfully retrieved user by username: %s", user.Username)
 	return &user, nil
 }
@@ -230,33 +259,38 @@ func GetUserByUsername(username string) (*models.User, error) {
 func GetUserByEmail(email string) (*models.User, error) {
 	var user models.User
 	var userID string
-	
+
 	// Use sql.Null types for all nullable fields
 	var middleName, institutionName, studentIDVerification sql.NullString
 	var twoFAImage, twoFASecret, emailVerificationToken, passwordResetToken sql.NullString
+	var password, studentID, major, year sql.NullString
+	var googleSub sql.NullString
+	var authProvider sql.NullString
 	var dateOfBirth, passwordResetExpires sql.NullTime
-	var emailVerified, studentIDVerified, twoFAEnabled sql.NullBool
-	
+	var emailVerified, studentIDVerified, twoFAEnabled, profileCompleted sql.NullBool
+
 	// Log the query we're about to execute
 	log.Printf("Executing GetUserByEmail query for: %s", email)
-	
+
 	// Use a simpler query with only the columns we know exist in the database
-	query := `SELECT 
-		id, username, password, first_name, middle_name, last_name, email, 
-		student_id, major, profile_picture, date_of_birth, role_id, created_at, updated_at, 
-		year, institution_name, gender, 
-		email_verified, email_verification_token, password_reset_token, password_reset_expires, 
-		student_id_verified, student_id_verification, 
-		twofa_enabled, twofa_image, twofa_secret 
+	query := `SELECT
+		id, username, password, first_name, middle_name, last_name, email,
+		student_id, major, profile_picture, date_of_birth, role_id, created_at, updated_at,
+		year, institution_name, gender,
+		email_verified, email_verification_token, password_reset_token, password_reset_expires,
+		student_id_verified, student_id_verification,
+		twofa_enabled, twofa_image, twofa_secret,
+		google_sub, auth_provider, profile_completed
 		FROM users WHERE email = $1`
-	
+
 	err := database.DB.QueryRow(context.Background(), query, email).Scan(
-		&userID, &user.Username, &user.Password, &user.FirstName, &middleName, &user.LastName, &user.Email,
-		&user.StudentID, &user.Major, &user.ProfilePicture, &dateOfBirth, &user.RoleID, &user.CreatedAt,
-		&user.UpdatedAt, &user.Year, &institutionName, &user.Gender,
+		&userID, &user.Username, &password, &user.FirstName, &middleName, &user.LastName, &user.Email,
+		&studentID, &major, &user.ProfilePicture, &dateOfBirth, &user.RoleID, &user.CreatedAt,
+		&user.UpdatedAt, &year, &institutionName, &user.Gender,
 		&emailVerified, &emailVerificationToken, &passwordResetToken, &passwordResetExpires,
 		&studentIDVerified, &studentIDVerification,
-		&twoFAEnabled, &twoFAImage, &twoFASecret)
+		&twoFAEnabled, &twoFAImage, &twoFASecret,
+		&googleSub, &authProvider, &profileCompleted)
 	
 	if err != nil {
 		log.Printf("Error in GetUserByEmail: %v", err)
@@ -320,40 +354,66 @@ func GetUserByEmail(email string) (*models.User, error) {
 	if twoFASecret.Valid {
 		user.TwoFASecret = &twoFASecret.String
 	}
-	
+
+	if password.Valid {
+		user.Password = password.String
+	}
+	if studentID.Valid {
+		user.StudentID = studentID.String
+	}
+	if major.Valid {
+		user.Major = major.String
+	}
+	if year.Valid {
+		user.Year = year.String
+	}
+	if googleSub.Valid {
+		user.GoogleSub = &googleSub.String
+	}
+	if authProvider.Valid {
+		user.AuthProvider = authProvider.String
+	}
+	if profileCompleted.Valid {
+		user.ProfileCompleted = profileCompleted.Bool
+	}
+
 	log.Printf("Successfully retrieved user by email: %s", user.Email)
 	return &user, nil
 }
 
 func GetUserByID(userID uuid.UUID) (*models.User, error) {
 	var user models.User
-	
+
 	// Use sql.Null types for all nullable fields
 	var middleName, institutionName, studentIDVerification sql.NullString
 	var twoFAImage, twoFASecret, emailVerificationToken, passwordResetToken sql.NullString
+	var password, studentID, major, year sql.NullString
+	var googleSub, authProvider sql.NullString
 	var dateOfBirth, passwordResetExpires sql.NullTime
-	var emailVerified, studentIDVerified, twoFAEnabled sql.NullBool
-	
+	var emailVerified, studentIDVerified, twoFAEnabled, profileCompleted sql.NullBool
+
 	// Log the query we're about to execute
 	log.Printf("Executing GetUserByID query for ID: %s", userID.String())
-	
+
 	// Use a simpler query with only the columns we know exist in the database
-	query := `SELECT 
-		id, username, password, first_name, middle_name, last_name, email, 
-		student_id, major, profile_picture, date_of_birth, role_id, created_at, updated_at, 
-		year, institution_name, gender, 
-		email_verified, email_verification_token, password_reset_token, password_reset_expires, 
-		student_id_verified, student_id_verification, 
-		twofa_enabled, twofa_image, twofa_secret 
+	query := `SELECT
+		id, username, password, first_name, middle_name, last_name, email,
+		student_id, major, profile_picture, date_of_birth, role_id, created_at, updated_at,
+		year, institution_name, gender,
+		email_verified, email_verification_token, password_reset_token, password_reset_expires,
+		student_id_verified, student_id_verification,
+		twofa_enabled, twofa_image, twofa_secret,
+		google_sub, auth_provider, profile_completed
 		FROM users WHERE id = $1`
-	
+
 	err := database.DB.QueryRow(context.Background(), query, userID).Scan(
-		&user.ID, &user.Username, &user.Password, &user.FirstName, &middleName, &user.LastName, &user.Email,
-		&user.StudentID, &user.Major, &user.ProfilePicture, &dateOfBirth, &user.RoleID, &user.CreatedAt,
-		&user.UpdatedAt, &user.Year, &institutionName, &user.Gender,
+		&user.ID, &user.Username, &password, &user.FirstName, &middleName, &user.LastName, &user.Email,
+		&studentID, &major, &user.ProfilePicture, &dateOfBirth, &user.RoleID, &user.CreatedAt,
+		&user.UpdatedAt, &year, &institutionName, &user.Gender,
 		&emailVerified, &emailVerificationToken, &passwordResetToken, &passwordResetExpires,
 		&studentIDVerified, &studentIDVerification,
-		&twoFAEnabled, &twoFAImage, &twoFASecret)
+		&twoFAEnabled, &twoFAImage, &twoFASecret,
+		&googleSub, &authProvider, &profileCompleted)
 	
 	if err != nil {
 		log.Printf("Error in GetUserByID: %v", err)
@@ -411,7 +471,29 @@ func GetUserByID(userID uuid.UUID) (*models.User, error) {
 	if twoFASecret.Valid {
 		user.TwoFASecret = &twoFASecret.String
 	}
-	
+
+	if password.Valid {
+		user.Password = password.String
+	}
+	if studentID.Valid {
+		user.StudentID = studentID.String
+	}
+	if major.Valid {
+		user.Major = major.String
+	}
+	if year.Valid {
+		user.Year = year.String
+	}
+	if googleSub.Valid {
+		user.GoogleSub = &googleSub.String
+	}
+	if authProvider.Valid {
+		user.AuthProvider = authProvider.String
+	}
+	if profileCompleted.Valid {
+		user.ProfileCompleted = profileCompleted.Bool
+	}
+
 	log.Printf("Successfully retrieved user by ID: %s", userID.String())
 	return &user, nil
 }
@@ -419,12 +501,19 @@ func GetUserByID(userID uuid.UUID) (*models.User, error) {
 func GetUserByStudentID(studentID string) (*models.User, error) {
 	var user models.User
 	var userID string
-	err := database.DB.QueryRow(context.Background(), "SELECT * FROM users WHERE student_id = $1", studentID).Scan(
-		&user.ID, &user.Username, &user.Password, &user.FirstName, &user.MiddleName, &user.LastName, &user.Email,
-		&user.StudentID, &user.Major, &user.ProfilePicture, &user.DateOfBirth, &user.RoleID, &user.CreatedAt,
-		&user.UpdatedAt, &user.Year, &user.EmailVerified, &user.EmailVerificationToken, &user.PasswordResetToken,
-		&user.PasswordResetExpires, &user.StudentIDVerified, &user.StudentIDVerification, &user.InstitutionName,
-		&user.Gender, &user.TwoFAEnabled, &user.TwoFAImage, &user.TwoFASecret,
+
+	// Explicit column list – avoid SELECT * so adding migrations doesn't break
+	// the Scan signature. Only the fields the callers actually use.
+	query := `SELECT id, username, email, COALESCE(first_name,''), COALESCE(last_name,''),
+		       role_id, COALESCE(student_id,''), COALESCE(major,''), COALESCE(year,''),
+		       email_verified, profile_completed
+		FROM users WHERE student_id = $1`
+
+	var emailVerified, profileCompleted sql.NullBool
+	err := database.DB.QueryRow(context.Background(), query, studentID).Scan(
+		&userID, &user.Username, &user.Email, &user.FirstName, &user.LastName,
+		&user.RoleID, &user.StudentID, &user.Major, &user.Year,
+		&emailVerified, &profileCompleted,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -435,6 +524,12 @@ func GetUserByStudentID(studentID string) (*models.User, error) {
 	user.ID, err = uuid.Parse(userID)
 	if err != nil {
 		return nil, err
+	}
+	if emailVerified.Valid {
+		user.EmailVerified = emailVerified.Bool
+	}
+	if profileCompleted.Valid {
+		user.ProfileCompleted = profileCompleted.Bool
 	}
 	return &user, nil
 }

@@ -171,6 +171,10 @@ func (as *AuthService) GetUserByUsernameOrEmail(usernameOrEmail string) (*models
 	return app.AuthenticateUser(usernameOrEmail)
 }
 
+func (as *AuthService) GetUserByEmail(email string) (*models.User, error) {
+	return app.GetUserByEmail(email)
+}
+
 func (as *AuthService) CheckStudentIDExists(studentID string) (bool, error) {
 	return app.CheckStudentIDExists(studentID)
 }
@@ -281,6 +285,179 @@ func (as *AuthService) ValidateEmail(email string) error {
 	default:
 		return errors.New("unexpected status from email verification")
 	}
+}
+
+// ── Google OAuth flow ───────────────────────────────────────────────────────
+
+// GoogleAuthOutcome is what GoogleSignInOrLink returns to the handler so the
+// HTTP layer can pick the right response shape.
+type GoogleAuthOutcome struct {
+	User             *models.User
+	IsNewUser        bool // true ⇢ we just created the row in this call
+	NeedsCompletion  bool // true ⇢ student email but no student_id yet
+	WasLinked        bool // true ⇢ matched an existing password account by email
+}
+
+// GoogleSignInOrLink is the heart of the Google flow. Given a verified set of
+// Google claims, it does exactly one of:
+//
+//  1. Existing row found by google_sub  → log them in.
+//  2. Existing row found by email       → auto-link (silent) and log them in.
+//  3. No row found                      → create a fresh user. Role is
+//     decided by the email domain:
+//       - @student.president.ac.id → temporarily Guest with profile_completed
+//         = false; the frontend will route them to /complete-profile to enter
+//         Student ID + batch. Only then do we promote to Computizen / keep as
+//         Guest based on the prefix.
+//       - everything else (gmail.com etc.) → Guest, profile_completed = true.
+func (as *AuthService) GoogleSignInOrLink(claims *utils.GoogleIDTokenClaims) (*GoogleAuthOutcome, error) {
+	email := strings.ToLower(strings.TrimSpace(claims.Email))
+	if email == "" {
+		return nil, errors.New("google id_token has no email")
+	}
+
+	// 1. Lookup by google_sub – the cheapest, most-stable path.
+	if u, err := app.GetUserByGoogleSub(claims.Sub); err != nil {
+		return nil, fmt.Errorf("lookup by google_sub: %w", err)
+	} else if u != nil {
+		return &GoogleAuthOutcome{
+			User:            u,
+			NeedsCompletion: !u.ProfileCompleted,
+		}, nil
+	}
+
+	// 2. Lookup by email – existing password user adopting Google.
+	if u, err := app.GetUserByEmail(email); err != nil {
+		return nil, fmt.Errorf("lookup by email: %w", err)
+	} else if u != nil {
+		if err := app.LinkGoogleSub(u.ID, claims.Sub); err != nil {
+			return nil, fmt.Errorf("link google_sub: %w", err)
+		}
+		// Refresh the row so the caller sees the new auth_provider.
+		refreshed, err := app.GetUserByID(u.ID)
+		if err != nil || refreshed == nil {
+			return nil, fmt.Errorf("refresh after link: %w", err)
+		}
+		return &GoogleAuthOutcome{
+			User:            refreshed,
+			WasLinked:       true,
+			NeedsCompletion: !refreshed.ProfileCompleted,
+		}, nil
+	}
+
+	// 3. Brand-new account.
+	isStudentEmail := strings.HasSuffix(email, "@student.president.ac.id")
+
+	newUser := &models.User{
+		ID:               uuid.New(),
+		Email:            email,
+		FirstName:        firstNonEmpty(claims.GivenName, claims.Name),
+		LastName:         claims.FamilyName,
+		Gender:           "male",
+		GoogleSub:        &claims.Sub,
+		AuthProvider:     "google",
+		ProfileCompleted: !isStudentEmail, // gmail = done, student = needs form
+		EmailVerified:    true,
+	}
+
+	// Generate a unique username from the email's local-part. If it collides
+	// we suffix a 4-char random string.
+	base := utils.RemoveWhitespace(strings.ToLower(strings.Split(email, "@")[0]))
+	if base == "" {
+		base = "user"
+	}
+	newUser.Username = base
+	if exists, _ := as.IsUsernameExists(base); exists {
+		newUser.Username = base + utils.GenerateRandomString(4)
+	}
+
+	if isStudentEmail {
+		// They will fill these in on the complete-profile screen.
+		newUser.StudentID = ""
+		newUser.Major = ""
+		newUser.Year = ""
+		newUser.RoleID = models.RoleGuest // temporary
+	} else {
+		newUser.RoleID = models.RoleGuest // gmail.com stays guest forever
+		newUser.StudentID = ""
+		newUser.Major = ""
+		newUser.Year = ""
+	}
+
+	if err := app.CreateGoogleUser(newUser); err != nil {
+		return nil, fmt.Errorf("create google user: %w", err)
+	}
+
+	return &GoogleAuthOutcome{
+		User:            newUser,
+		IsNewUser:       true,
+		NeedsCompletion: isStudentEmail,
+	}, nil
+}
+
+// LinkGoogleToExistingAccount is the explicit dashboard-button version of
+// step 2 in GoogleSignInOrLink. Used when a logged-in password user clicks
+// "Link Google" while authenticated.
+func (as *AuthService) LinkGoogleToExistingAccount(userID uuid.UUID, claims *utils.GoogleIDTokenClaims) error {
+	// Refuse if the Google sub is already attached to a *different* user –
+	// otherwise we'd silently re-route Google sign-ins to someone else.
+	if existing, err := app.GetUserByGoogleSub(claims.Sub); err != nil {
+		return err
+	} else if existing != nil && existing.ID != userID {
+		return errors.New("this Google account is already linked to a different user")
+	}
+	return app.LinkGoogleSub(userID, claims.Sub)
+}
+
+// CompleteStudentProfile runs the same Student-ID validation as the classic
+// /auth/register handler and writes the result onto an already-created Google
+// account. Role is promoted to Computizen for CS prefixes, kept as Guest
+// otherwise (Faculty of Computer Science gate).
+func (as *AuthService) CompleteStudentProfile(userID uuid.UUID, studentID, year string) (roleID int, major string, err error) {
+	if len(studentID) != 12 {
+		return 0, "", errors.New("student ID must be 12 characters long")
+	}
+	if studentID[3:7] < "2010" {
+		return 0, "", errors.New("you are not eligible to register an account")
+	}
+
+	// Reject duplicate Student IDs (someone else already claimed this number).
+	if existing, err := app.GetUserByStudentID(studentID); err == nil && existing != nil && existing.ID != userID {
+		return 0, "", errors.New("Student ID already exists")
+	}
+
+	switch studentID[:3] {
+	case "001":
+		major = "informatics"
+		roleID = models.RoleComputizen
+	case "012":
+		major = "information system"
+		roleID = models.RoleComputizen
+	case "013":
+		major = "visual communication design"
+		roleID = models.RoleComputizen
+	case "025":
+		major = "interior design"
+		roleID = models.RoleComputizen
+	default:
+		// Not part of the Faculty of Computer Science → stay as Guest.
+		major = "other"
+		roleID = models.RoleGuest
+	}
+
+	if err := app.CompleteGoogleProfile(userID, studentID, major, year, roleID); err != nil {
+		return 0, "", err
+	}
+	return roleID, major, nil
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func (as *AuthService) RequestForgotPassword(userID uuid.UUID) (string, error) {

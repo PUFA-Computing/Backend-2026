@@ -34,4 +34,25 @@ type User struct {
 	TwoFAEnabled           bool       `json:"twofa_enabled"`
 	TwoFAImage             *string    `json:"twofa_image"`
 	TwoFASecret            *string    `json:"twofa_secret"`
+	// Google OAuth + account linking ─────────────────────────────────────────
+	// GoogleSub is Google's stable subject ID (`sub` claim). Used to look up
+	// the row on subsequent Google sign-ins so renaming a Google email still
+	// finds the right account.
+	GoogleSub *string `json:"google_sub,omitempty"`
+	// AuthProvider tells us which login methods are wired up: "password",
+	// "google", or "both". Driven by whether google_sub / password is set.
+	AuthProvider string `json:"auth_provider"`
+	// ProfileCompleted is false only for fresh Google sign-ups that still
+	// need to enter Student ID + batch on the complete-profile screen.
+	ProfileCompleted bool `json:"profile_completed"`
 }
+
+// Pre-defined role IDs that match migrations/000001_roles.up.sql.
+const (
+	RoleAdmin      = 1
+	RoleComputizen = 2
+	RolePufaCS     = 3
+	RolePumaIT     = 4
+	RolePumaIS     = 5
+	RoleGuest      = 6
+)

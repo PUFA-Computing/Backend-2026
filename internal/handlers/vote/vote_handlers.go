@@ -38,13 +38,7 @@ func NewVoteHandler(voteService *services.VoteService, permissionService *servic
 // @Security BearerAuth
 // @Router /votes/cast [post]
 func (h *Handler) CastVote(c *gin.Context) {
-	token, err := utils.ExtractTokenFromHeader(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": []string{err.Error()}})
-		return
-	}
-
-	userID, err := utils.GetUserIDFromToken(token, os.Getenv("JWT_SECRET_KEY"))
+	userID, err := (&auth.Handlers{}).ExtractUserIDAndCheckPermission(c, "vote:cast")
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": []string{err.Error()}})
 		return

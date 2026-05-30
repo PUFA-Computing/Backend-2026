@@ -15,7 +15,6 @@ import (
 	"Backend/internal/handlers/vote"
 	"Backend/internal/middleware"
 	"Backend/internal/services"
-	"log"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -54,8 +53,10 @@ func SetupRoutes() *gin.Engine {
 		MaxAge:           12 * time.Hour,
 	}))
 
-	// Add request timeout middleware (30 seconds)
-	r.Use(middleware.TimeoutMiddleware(30 * time.Second))
+	// Add request timeout middleware.
+	// Set to 120 seconds to accommodate file upload routes (image optimization + R2 upload).
+	// Note: per-route timeouts cannot exceed this since child contexts inherit parent deadlines.
+	r.Use(middleware.TimeoutMiddleware(120 * time.Second))
 	// Add gzip compression for responses (reduces bandwidth by 60-70%)
 	r.Use(gzip.Gzip(gzip.DefaultCompression))
 
@@ -92,76 +93,6 @@ func SetupRoutes() *gin.Engine {
 	projectVoteService := services.NewProjectVoteService()
 	AWSService, _ := services.NewAWSService()
 	R2Service, _ := services.NewR2Service()
-	// Get email service configuration
-	config := configs.LoadConfig()
-
-	// Initialize email service based on configuration
-	var EmailService services.EmailService
-
-	// Check if we should use SMTP or SendGrid
-	if config.UseSmtp {
-		// Use SMTP service
-		smtpHost := config.SMTPHost
-		if smtpHost == "" {
-			smtpHost = "smtp.gmail.com"
-			log.Println("Using fallback SMTP host: smtp.gmail.com")
-		}
-
-		smtpPort := config.SMTPPort
-		if smtpPort == "" {
-			smtpPort = "587"
-			log.Println("Using fallback SMTP port: 587")
-		}
-
-		smtpUsername := config.SMTPUsername
-		if smtpUsername == "" {
-			log.Println("WARNING: SMTP username not found in environment variables")
-		}
-
-		smtpPassword := config.SMTPPassword
-		if smtpPassword == "" {
-			log.Println("WARNING: SMTP password not found in environment variables")
-		}
-
-		senderEmail := config.SenderEmail
-		if senderEmail == "" {
-			log.Println("WARNING: SMTP sender email not found in environment variables")
-		}
-
-		EmailService = services.NewTestMailService(
-			smtpHost,
-			smtpPort,
-			smtpUsername,
-			smtpPassword,
-			senderEmail,
-		)
-		log.Println("Using SMTP email service")
-	} else {
-
-		brevoAPIKey := config.BrevoAPIKey
-		if brevoAPIKey == "" {
-			log.Println("Warning: Brevo API key not provided, email functionality will be limited")
-		}
-
-		brevoSenderEmail := config.BrevoSenderEmail
-		if brevoSenderEmail == "" {
-			brevoSenderEmail = "noreply@pufacomputing.ac.id" // Default sender email
-			log.Println("Using default sender email:", brevoSenderEmail)
-		}
-
-		brevoSenderName := config.BrevoSenderName
-		if brevoSenderName == "" {
-			brevoSenderName = "PUFA Computer Science"
-			log.Println("Using default sender name:", brevoSenderName)
-		}
-
-		EmailService = services.NewBrevoService(
-			brevoAPIKey,
-			brevoSenderEmail,
-			brevoSenderName,
-		)
-		log.Println("Using Brevo email service")
-	}
 	VersionService := services.NewVersionService(configs.LoadConfig().GithubAccessToken)
 
 	eventStatusUpdater := services.NewEventStatusUpdater(eventService)
@@ -170,7 +101,7 @@ func SetupRoutes() *gin.Engine {
 	versionUpdater := services.NewVersionUpdater(VersionService)
 	go versionUpdater.Run()
 
-	authHandlers := auth.NewAuthHandlers(authService, permissionService, EmailService, userService)
+	authHandlers := auth.NewAuthHandlers(authService, permissionService, userService)
 	userHandlers := user.NewUserHandlers(userService, permissionService, AWSService, R2Service)
 	eventHandlers := event.NewEventHandlers(eventService, permissionService, AWSService, R2Service)
 	newsHandlers := news.NewNewsHandler(newsService, permissionService, AWSService, R2Service)
@@ -192,8 +123,14 @@ func SetupRoutes() *gin.Engine {
 		authRoutes.POST("/logout", authHandlers.Logout)
 		authRoutes.POST("/refresh-token", middleware.TokenMiddleware(), authHandlers.RefreshToken)
 		authRoutes.GET("/verify-email", authHandlers.VerifyEmail)
-		authRoutes.POST("/forgot-password/request", authHandlers.RequestPasswordReset)
-		authRoutes.POST("/forgot-password", authHandlers.ResetPassword)
+		authRoutes.GET("/account-status", authHandlers.GetAccountStatus)
+
+		// Google OAuth – the frontend (NextAuth) sends Google's id_token here
+		// and gets back our backend JWT plus a needs_completion flag.
+		authRoutes.POST("/google", middleware.RateLimiterMiddleware(60, time.Minute, "google_signin"), authHandlers.GoogleSignIn)
+		// Authenticated extensions of the Google flow.
+		authRoutes.POST("/google/complete", middleware.TokenMiddleware(), authHandlers.CompleteGoogleProfile)
+		authRoutes.POST("/google/link", middleware.TokenMiddleware(), authHandlers.LinkGoogleAccount)
 	}
 
 	userRoutes := api.Group("/user")

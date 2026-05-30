@@ -20,15 +20,13 @@ import (
 type Handlers struct {
 	AuthService       *services.AuthService
 	PermissionService *services.PermissionService
-	EmailService      services.EmailService
 	UserService       *services.UserService
 }
 
-func NewAuthHandlers(authService *services.AuthService, permissionService *services.PermissionService, EmailService services.EmailService, userService *services.UserService) *Handlers {
+func NewAuthHandlers(authService *services.AuthService, permissionService *services.PermissionService, userService *services.UserService) *Handlers {
 	return &Handlers{
 		AuthService:       authService,
 		PermissionService: permissionService,
-		EmailService:      EmailService,
 		UserService:       userService,
 	}
 }
@@ -343,6 +341,172 @@ func (h *Handlers) ExtractUserIDAndCheckPermission(c *gin.Context, permissionTyp
 	return userID, nil
 }
 
+// ── Google OAuth ─────────────────────────────────────────────────────────────
+
+// GoogleSignIn accepts a Google ID token from the frontend (issued by
+// NextAuth's GoogleProvider), verifies it server-side, then either logs the
+// user in or creates / links the account. The response always carries a
+// backend JWT so the SPA can call protected endpoints the same way as
+// password login.
+//
+// Body: { "id_token": "<google-id-token>" }
+//
+// Response on success:
+//
+//	{
+//	  "success": true,
+//	  "data": {
+//	    "access_token": "...",
+//	    "token_type":   "Bearer",
+//	    "user_id":      "<uuid>",
+//	    "needs_completion": true|false,
+//	    "is_new_user":      true|false,
+//	    "was_linked":       true|false,
+//	    "role_id":          6
+//	  }
+//	}
+//
+// needs_completion=true tells the frontend to route the user to
+// /auth/complete-profile to enter Student ID + batch.
+//
+// @Summary Sign in / register with Google
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Router /auth/google [post]
+func (h *Handlers) GoogleSignIn(c *gin.Context) {
+	var body struct {
+		IDToken string `json:"id_token"`
+	}
+	if err := c.BindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "id_token is required"})
+		return
+	}
+
+	clientID := os.Getenv("GOOGLE_CLIENT_ID")
+	claims, err := utils.VerifyGoogleIDToken(body.IDToken, clientID)
+	if err != nil {
+		log.Printf("Google id_token rejected: %v", err)
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Invalid Google token"})
+		return
+	}
+
+	outcome, err := h.AuthService.GoogleSignInOrLink(claims)
+	if err != nil {
+		log.Printf("GoogleSignInOrLink failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+
+	if outcome.WasLinked {
+		// Linked account logic can go here
+	}
+
+	token, err := utils.GenerateJWTToken(outcome.User.ID, os.Getenv("JWT_SECRET_KEY"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	_ = utils.StoreTokenInRedis(outcome.User.ID, token)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Google sign-in successful",
+		"data": gin.H{
+			"access_token":     token,
+			"token_type":       "Bearer",
+			"user_id":          outcome.User.ID.String(),
+			"role_id":          outcome.User.RoleID,
+			"needs_completion": outcome.NeedsCompletion,
+			"is_new_user":      outcome.IsNewUser,
+			"was_linked":       outcome.WasLinked,
+			"email":            outcome.User.Email,
+		},
+	})
+}
+
+// CompleteGoogleProfile finishes a fresh Google sign-up by accepting Student
+// ID + batch year. Promotes to Computizen (role 2) for CS prefixes; otherwise
+// the row stays as Guest (role 6).
+//
+// Body: { "student_id": "001202301234", "year": "2023" }
+//
+// @Summary Complete Google profile with Student ID + batch
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Router /auth/google/complete [post]
+func (h *Handlers) CompleteGoogleProfile(c *gin.Context) {
+	userID, err := utils.GetUserIDFromContext(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Unauthorized"})
+		return
+	}
+
+	var body struct {
+		StudentID string `json:"student_id"`
+		Year      string `json:"year"`
+	}
+	if err := c.BindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+
+	roleID, major, err := h.AuthService.CompleteStudentProfile(userID, strings.TrimSpace(body.StudentID), strings.TrimSpace(body.Year))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Profile completed",
+		"data": gin.H{
+			"role_id": roleID,
+			"major":   major,
+		},
+	})
+}
+
+// LinkGoogleAccount is the "Link Google" button on the profile page. It
+// requires a valid backend JWT (password user) AND a fresh Google id_token.
+//
+// Body: { "id_token": "<google-id-token>" }
+//
+// @Summary Link a Google account to the currently authenticated user
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Router /auth/google/link [post]
+func (h *Handlers) LinkGoogleAccount(c *gin.Context) {
+	userID, err := utils.GetUserIDFromContext(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Unauthorized"})
+		return
+	}
+
+	var body struct {
+		IDToken string `json:"id_token"`
+	}
+	if err := c.BindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "id_token is required"})
+		return
+	}
+
+	claims, err := utils.VerifyGoogleIDToken(body.IDToken, os.Getenv("GOOGLE_CLIENT_ID"))
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Invalid Google token"})
+		return
+	}
+
+	if err := h.AuthService.LinkGoogleToExistingAccount(userID, claims); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Google account linked"})
+}
+
 func (h *Handlers) VerifyEmail(c *gin.Context) {
 	token := c.Query("token")
 	if token == "" {
@@ -369,86 +533,40 @@ func (h *Handlers) VerifyEmail(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Email Verified Successfully"})
 }
 
-func (h *Handlers) RequestPasswordReset(c *gin.Context) {
-	var request struct {
-		Email string `json:"email"`
-	}
 
-	if err := c.BindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": []string{err.Error()}})
+
+// GetAccountStatus checks if an account exists and returns its auth status
+// @Summary Get account status by email
+// @Tags Auth
+// @Produce json
+// @Param email query string true "User email"
+// @Router /auth/account-status [get]
+func (h *Handlers) GetAccountStatus(c *gin.Context) {
+	email := c.Query("email")
+	if email == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Email is required"})
 		return
 	}
 
-	user, err := h.AuthService.GetUserByUsernameOrEmail(request.Email)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
+	user, err := h.AuthService.GetUserByEmail(email)
+	if err != nil || user == nil {
+		// Just return false if not found, don't leak errors for enumeration
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data": gin.H{
+				"exists": false,
+			},
+		})
 		return
 	}
 
-	if user == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": []string{"User not found"}})
-		return
-	}
-
-	otpCode, err := h.AuthService.RequestForgotPassword(user.ID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
-		return
-	}
-
-	if err := h.EmailService.SendOTPEmail(user.Email, otpCode); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Password Reset Email Sent"})
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"exists":        true,
+			"auth_provider": user.AuthProvider,
+			"has_password":  user.Password != "",
+		},
+	})
 }
 
-func (h *Handlers) ResetPassword(c *gin.Context) {
-	var request struct {
-		Email    string  `json:"email"`
-		OTP      string  `json:"otp"`
-		Password *string `json:"password"`
-	}
-
-	if err := c.BindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": []string{err.Error()}})
-		return
-	}
-
-	user, err := h.AuthService.GetUserByUsernameOrEmail(request.Email)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
-		return
-	}
-
-	if user == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": []string{"User not found"}})
-		return
-	}
-
-	// Check if the OTP is valid
-	valid := h.AuthService.VerifyOTP(user.ID, request.OTP)
-	if !valid {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Invalid OTP"})
-		return
-	}
-
-	// If password is provided, reset it
-	if request.Password != nil {
-		success, err := h.AuthService.ResetPassword(user.ID, request.OTP, *request.Password)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
-			return
-		}
-		if !success {
-			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Invalid OTP"})
-			return
-		}
-
-		c.JSON(http.StatusOK, gin.H{"success": true, "message": "Password reset successfully"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Valid OTP"})
-}

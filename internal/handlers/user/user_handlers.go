@@ -517,21 +517,46 @@ func (h *Handlers) ToggleTwoFA(c *gin.Context) {
 }
 
 func (h *Handlers) ChangePassword(c *gin.Context) {
-	userID, err := (&auth.Handlers{}).ExtractUserIDAndCheckPermission(c, "users:create")
+	// Any logged-in user can change their own password, so no specific role permission like 'users:create' is needed.
+	userID, err := utils.GetUserIDFromContext(c)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": []string{"Unauthorized"}})
 		return
 	}
 
 	var request struct {
-		Password string `json:"password"`
+		CurrentPassword string `json:"current_password"`
+		NewPassword     string `json:"new_password"`
 	}
 	if err := c.BindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
 		return
 	}
 
-	err = h.UserService.ChangePassword(userID, request.Password)
+	user, err := h.UserService.GetUserByID(userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+
+	// If the user already has a password, they MUST provide the correct current password
+	if user.Password != "" {
+		if request.CurrentPassword == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Current password is required"})
+			return
+		}
+		if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(request.CurrentPassword)); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Incorrect current password"})
+			return
+		}
+	}
+
+	if request.NewPassword == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "New password is required"})
+		return
+	}
+
+	err = h.UserService.ChangePassword(userID, request.NewPassword)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
 		return

@@ -36,13 +36,7 @@ func NewProjectVoteHandler(projectVoteService *services.ProjectVoteService) *Vot
 // @Security BearerAuth
 // @Router /projects/{projectID}/vote [post]
 func (h *VoteHandler) VoteProject(c *gin.Context) {
-	token, err := utils.ExtractTokenFromHeader(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": []string{err.Error()}})
-		return
-	}
-
-	userID, err := utils.GetUserIDFromToken(token, os.Getenv("JWT_SECRET_KEY"))
+	userID, err := (&auth.Handlers{}).ExtractUserIDAndCheckPermission(c, "project_vote:create")
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": []string{err.Error()}})
 		return
@@ -84,13 +78,7 @@ func (h *VoteHandler) VoteProject(c *gin.Context) {
 // @Security BearerAuth
 // @Router /projects/{projectID}/unvote [delete]
 func (h *VoteHandler) UnvoteProject(c *gin.Context) {
-	token, err := utils.ExtractTokenFromHeader(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": []string{err.Error()}})
-		return
-	}
-
-	userID, err := utils.GetUserIDFromToken(token, os.Getenv("JWT_SECRET_KEY"))
+	userID, err := (&auth.Handlers{}).ExtractUserIDAndCheckPermission(c, "project_vote:delete")
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": []string{err.Error()}})
 		return

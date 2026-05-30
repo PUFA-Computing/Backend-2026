@@ -186,6 +186,124 @@ func VerifyEmail(token string) error {
 	return nil
 }
 
+// ── Google OAuth helpers ────────────────────────────────────────────────────
+
+// GetUserByGoogleSub returns the user linked to the given Google subject ID
+// (nil, nil) on miss.
+func GetUserByGoogleSub(sub string) (*models.User, error) {
+	var user models.User
+	var userIDStr string
+	var roleID int
+	var emailVerified, profileCompleted sql.NullBool
+	var studentID, major, year sql.NullString
+
+	query := `
+		SELECT id, username, email, COALESCE(first_name,''), COALESCE(last_name,''),
+		       role_id, email_verified, profile_completed,
+		       student_id, major, year
+		FROM users
+		WHERE google_sub = $1`
+
+	err := database.DB.QueryRow(context.Background(), query, sub).Scan(
+		&userIDStr, &user.Username, &user.Email, &user.FirstName, &user.LastName,
+		&roleID, &emailVerified, &profileCompleted,
+		&studentID, &major, &year,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if user.ID, err = uuid.Parse(userIDStr); err != nil {
+		return nil, err
+	}
+	user.RoleID = roleID
+	if emailVerified.Valid {
+		user.EmailVerified = emailVerified.Bool
+	}
+	if profileCompleted.Valid {
+		user.ProfileCompleted = profileCompleted.Bool
+	}
+	if studentID.Valid {
+		user.StudentID = studentID.String
+	}
+	if major.Valid {
+		user.Major = major.String
+	}
+	if year.Valid {
+		user.Year = year.String
+	}
+	return &user, nil
+}
+
+// LinkGoogleSub attaches a Google sub to an existing user row and flips
+// auth_provider to "both" (a password user adopting Google) or "google"
+// (when no password is stored). Idempotent.
+func LinkGoogleSub(userID uuid.UUID, sub string) error {
+	query := `
+		UPDATE users
+		SET google_sub = $1,
+		    auth_provider = CASE
+		        WHEN password IS NULL OR password = '' THEN 'google'
+		        ELSE 'both'
+		    END,
+		    email_verified = TRUE,
+		    updated_at = NOW()
+		WHERE id = $2`
+	_, err := database.DB.Exec(context.Background(), query, sub, userID)
+	return err
+}
+
+// CreateGoogleUser inserts a row for a brand-new Google sign-up. Password is
+// left NULL. StudentID/Major/Year may be empty for the second-stage form.
+func CreateGoogleUser(user *models.User) error {
+	query := `
+		INSERT INTO users (
+		    id, username, first_name, last_name, email,
+		    student_id, major, year, role_id,
+		    institution_name, gender,
+		    email_verified, profile_completed,
+		    google_sub, auth_provider
+		) VALUES (
+		    $1, $2, $3, $4, $5,
+		    $6, $7, $8, $9,
+		    $10, $11,
+		    TRUE, $12,
+		    $13, 'google'
+		)`
+	_, err := database.DB.Exec(
+		context.Background(),
+		query,
+		user.ID, user.Username, user.FirstName, user.LastName, user.Email,
+		user.StudentID, user.Major, user.Year, user.RoleID,
+		user.InstitutionName, user.Gender,
+		user.ProfileCompleted,
+		user.GoogleSub,
+	)
+	if err != nil {
+		log.Printf("CreateGoogleUser insert error: %v", err)
+	}
+	return err
+}
+
+// CompleteGoogleProfile fills in Student ID + batch on a half-registered
+// Google account and promotes the role accordingly (Computizen for CS prefixes,
+// Guest otherwise). Performed in a single statement to stay atomic.
+func CompleteGoogleProfile(userID uuid.UUID, studentID, major, year string, roleID int) error {
+	query := `
+		UPDATE users
+		SET student_id = $1,
+		    major = $2,
+		    year = $3,
+		    role_id = $4,
+		    profile_completed = TRUE,
+		    updated_at = NOW()
+		WHERE id = $5`
+	_, err := database.DB.Exec(context.Background(), query, studentID, major, year, roleID, userID)
+	return err
+}
+
 func GetPasswordResetToken(userID uuid.UUID) (string, error) {
 	var token string
 	query := `
