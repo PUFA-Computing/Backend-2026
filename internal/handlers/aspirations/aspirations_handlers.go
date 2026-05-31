@@ -1,10 +1,12 @@
 package aspirations
 
 import (
+	"Backend/internal/database/app"
 	"Backend/internal/handlers/auth"
 	"Backend/internal/models"
 	"Backend/internal/services"
 	"github.com/gin-gonic/gin"
+	"log"
 	"net/http"
 	"strconv"
 )
@@ -25,6 +27,22 @@ func (h *Handlers) CreateAspiration(c *gin.Context) {
 	userID, err := (&auth.Handlers{}).ExtractUserIDAndCheckPermission(c, "aspirations:create")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": []string{err.Error()}})
+		return
+	}
+
+	// Authoritative "can this user add data?" gate on top of the
+	// permission-table check. Permissions can be loose (a Guest may carry
+	// aspirations:create from the seed data), so we additionally require
+	// the user be an admin or a verified Computizen with a CS Student ID.
+	// Mirrors `canCreateContent` in src/lib/permissions.ts.
+	currentUser, err := app.GetUserByID(userID)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": []string{"User not found"}})
+		return
+	}
+	if ok, reason := services.CanCreateContent(currentUser); !ok {
+		log.Printf("CreateAspiration blocked: user=%s role=%d reason=%q", userID, currentUser.RoleID, reason)
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": []string{reason}})
 		return
 	}
 

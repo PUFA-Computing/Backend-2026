@@ -1,6 +1,7 @@
 package project
 
 import (
+	"Backend/internal/database/app"
 	"Backend/internal/handlers/auth"
 	"Backend/internal/models"
 	"Backend/internal/services"
@@ -62,6 +63,21 @@ func (h *Handler) CreateProject(c *gin.Context) {
 	userID, err := utils.GetUserIDFromToken(token, os.Getenv("JWT_SECRET_KEY"))
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": []string{err.Error()}})
+		return
+	}
+
+	// Authoritative "can this user add data?" gate. Mirrors the frontend's
+	// `canCreateContent` in src/lib/permissions.ts — guests (role 6) and
+	// any non-Computizen-with-verified-CS-Student-ID get a 403 here even if
+	// the UI gate has been bypassed.
+	currentUser, err := app.GetUserByID(userID)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": []string{"User not found"}})
+		return
+	}
+	if ok, reason := services.CanCreateContent(currentUser); !ok {
+		log.Printf("CreateProject blocked: user=%s role=%d reason=%q", userID, currentUser.RoleID, reason)
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": []string{reason}})
 		return
 	}
 
