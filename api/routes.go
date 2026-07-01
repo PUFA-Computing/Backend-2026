@@ -15,6 +15,7 @@ import (
 	"Backend/internal/handlers/vote"
 	"Backend/internal/middleware"
 	"Backend/internal/services"
+	"Backend/internal/handlers/compregen"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -285,6 +286,24 @@ func SetupRoutes() *gin.Engine {
 		projectRoutes.DELETE("/:projectID/unvote", projectVoteHandlers.UnvoteProject)
 		projectRoutes.GET("/:projectID/votes/check", projectVoteHandlers.CheckHasVoted)
 		projectRoutes.GET("/votes/my-votes", projectVoteHandlers.GetMyProjectVotes)
+	}
+
+	compregenService := services.NewCompregenService()
+	compregenHandlers := compregen.NewCompregenHandler(compregenService, R2Service)
+
+	compregenRoutes := api.Group("/compregen")
+	{
+		compregenRoutes.GET("/links/:token", compregenHandlers.GetLinkStatus)
+		compregenRoutes.POST("/verify", compregenHandlers.Verify)
+		compregenRoutes.POST("/register", compregenHandlers.Register)
+		compregenRoutes.POST("/upload/photo", compregenHandlers.UploadPhoto)
+
+		compregenAdmin := compregenRoutes.Group("/admin")
+		compregenAdmin.Use(compregen.AdminKeyMiddleware())
+		{
+			compregenAdmin.GET("/registrations", compregenHandlers.GetRegistrations)
+			compregenAdmin.POST("/links", compregenHandlers.GenerateLink)
+		}
 	}
 
 	// Swagger documentation endpoint
