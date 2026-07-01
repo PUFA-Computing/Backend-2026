@@ -1,7 +1,7 @@
 package services
 
 import (
-	"Backend/internal/database/app"
+	dbApp "Backend/internal/database/app"
 	"Backend/internal/models"
 	"crypto/rand"
 	"encoding/hex"
@@ -15,7 +15,7 @@ func NewCompregenService() *CompregenService {
 }
 
 func (s *CompregenService) GetLinkStatus(token string) string {
-	link, err := app.GetInviteLinkByToken(token)
+	link, err := dbApp.GetInviteLinkByToken(token)
 	if err != nil {
 		return "not_found"
 	}
@@ -23,12 +23,12 @@ func (s *CompregenService) GetLinkStatus(token string) string {
 }
 
 func (s *CompregenService) Verify(token, studentID, email string) (*models.CompregenVerifyResponse, *models.CompregenInviteLink, error) {
-	link, err := app.GetInviteLinkByToken(token)
+	link, err := dbApp.GetInviteLinkByToken(token)
 	if err != nil || link.Status != "active" {
 		return nil, nil, errors.New("invalid_token")
 	}
 
-	locked, remaining, err := app.CheckRateLimit(link.ID)
+	locked, remaining, err := dbApp.CheckRateLimit(link.ID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -36,12 +36,12 @@ func (s *CompregenService) Verify(token, studentID, email string) (*models.Compr
 		return nil, nil, errors.New("rate_limited")
 	}
 
-	eligible, err := app.CheckEligibleCandidate(studentID, email)
+	eligible, err := dbApp.CheckEligibleCandidateByStudentID(studentID)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	_ = app.RecordVerifyAttempt(link.ID, studentID, email, eligible)
+	_ = dbApp.RecordVerifyAttempt(link.ID, studentID, email, eligible)
 
 	if !eligible {
 		reason := "not_in_whitelist"
@@ -56,12 +56,12 @@ func (s *CompregenService) Verify(token, studentID, email string) (*models.Compr
 }
 
 func (s *CompregenService) Register(token, cabinetName string, members map[string]models.CompregenMemberInput) (string, error) {
-	link, err := app.GetInviteLinkByToken(token)
+	link, err := dbApp.GetInviteLinkByToken(token)
 	if err != nil || link.Status != "active" {
 		return "", errors.New("link_already_used")
 	}
 
-	exists, err := app.RegistrationExistsForLink(link.ID)
+	exists, err := dbApp.RegistrationExistsForLink(link.ID)
 	if err != nil {
 		return "", err
 	}
@@ -71,7 +71,7 @@ func (s *CompregenService) Register(token, cabinetName string, members map[strin
 
 	// Validate all 3 members are whitelisted
 	for role, m := range members {
-		ok, err := app.CheckEligibleCandidate(m.StudentID, "")
+		ok, err := dbApp.CheckEligibleCandidateByStudentID(m.StudentID)
 		if err != nil {
 			return "", err
 		}
@@ -80,12 +80,12 @@ func (s *CompregenService) Register(token, cabinetName string, members map[strin
 		}
 	}
 
-	registrationID, err := app.CreateRegistration(link.ID, cabinetName, members)
+	registrationID, err := dbApp.CreateRegistration(link.ID, cabinetName, members)
 	if err != nil {
 		return "", err
 	}
 
-	_ = app.MarkInviteLinkUsed(link.ID)
+	_ = dbApp.MarkInviteLinkUsed(link.ID)
 	return registrationID, nil
 }
 

@@ -4,6 +4,7 @@ import (
 	"Backend/internal/database"
 	"Backend/internal/models"
 	"context"
+	"errors"
 	"time"
 )
 
@@ -49,15 +50,11 @@ func MarkInviteLinkUsed(linkID string) error {
 
 // ── Verify / Rate Limit ────────────────────────────────
 
-func CheckEligibleCandidate(studentID, campusEmail string) (bool, error) {
-	var exists bool
-	query := `
-		SELECT EXISTS(
-			SELECT 1 FROM compregen_eligible_candidates
-			WHERE student_id = $1 AND campus_email = $2
-		)`
-	err := database.DB.QueryRow(context.Background(), query, studentID, campusEmail).Scan(&exists)
-	return exists, err
+func CheckEligibleCandidateByStudentID(studentID string) (bool, error) {
+    var exists bool
+    query := `SELECT EXISTS(SELECT 1 FROM compregen_eligible_candidates WHERE student_id = $1)`
+    err := database.DB.QueryRow(context.Background(), query, studentID).Scan(&exists)
+    return exists, err
 }
 
 func RecordVerifyAttempt(inviteLinkID, studentID, email string, success bool) error {
@@ -141,14 +138,22 @@ func CreateRegistration(inviteLinkID, cabinetName string, members map[string]mod
 		return "", err
 	}
 
-	for role, member := range members {
+	for role, m := range members {
+		ok, err := CheckEligibleCandidateByStudentID(m.StudentID)
+		if err != nil {
+			return "", err
+		}
+		if !ok {
+			return "", errors.New("not_whitelisted:" + role)
+		}
+
 		_, err = tx.Exec(ctx, `
 			INSERT INTO compregen_registration_members
 				(registration_id, role, full_name, student_id, major, phone_number, photo_upload_id)
 			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 			registrationID, role,
-			member.FullName, member.StudentID, member.Major,
-			member.PhoneNumber, member.PhotoUploadID,
+			m.FullName, m.StudentID, m.Major,
+			m.PhoneNumber, m.PhotoUploadID,
 		)
 		if err != nil {
 			return "", err
