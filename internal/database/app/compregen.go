@@ -67,9 +67,13 @@ func MarkInviteLinkUsed(linkID string) error {
 
 func GetAllVerifyAttempts() ([]map[string]interface{}, error) {
     rows, err := database.DB.Query(context.Background(), `
-        SELECT id, invite_link_id, student_id_attempted, email_attempted, success, attempted_at
-        FROM compregen_verify_attempts
-        ORDER BY attempted_at DESC`)
+		SELECT va.id, va.invite_link_id, va.student_id_attempted, va.email_attempted, 
+			va.success, va.attempted_at,
+			COALESCE(ec.full_name, 'Unknown Candidate') as full_name,
+			COUNT(*) OVER (PARTITION BY va.invite_link_id, va.student_id_attempted) as attempts_count
+		FROM compregen_verify_attempts va
+		LEFT JOIN compregen_eligible_candidates ec ON ec.student_id = va.student_id_attempted
+		ORDER BY va.attempted_at DESC`)
     if err != nil {
         return nil, err
     }
@@ -77,12 +81,13 @@ func GetAllVerifyAttempts() ([]map[string]interface{}, error) {
 
     var attempts []map[string]interface{}
     for rows.Next() {
-        var id, linkID, studentID, email string
+        var id, linkID, studentID, email, fullName string
         var success bool
         var attemptedAt time.Time
-        if err := rows.Scan(&id, &linkID, &studentID, &email, &success, &attemptedAt); err != nil {
-            return nil, err
-        }
+		var attemptsCount int
+		if err := rows.Scan(&id, &linkID, &studentID, &email, &success, &attemptedAt, &fullName, &attemptsCount); err != nil {
+			return nil, err
+		}
         attempts = append(attempts, map[string]interface{}{
             "id":                   id,
             "invite_link_id":       linkID,
@@ -90,6 +95,8 @@ func GetAllVerifyAttempts() ([]map[string]interface{}, error) {
             "email_attempted":      email,
             "success":              success,
             "attempted_at":         attemptedAt,
+            "full_name":            fullName,
+            "attempts_count":       attemptsCount,
         })
     }
     return attempts, nil
