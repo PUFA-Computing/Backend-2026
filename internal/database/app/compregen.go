@@ -149,11 +149,11 @@ func CreateRegistration(inviteLinkID, cabinetName string, members map[string]mod
 
 		_, err = tx.Exec(ctx, `
 			INSERT INTO compregen_registration_members
-				(registration_id, role, full_name, student_id, major, phone_number, photo_upload_id)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+				(registration_id, role, full_name, student_id, major, phone_number, nationality, photo_upload_id)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 			registrationID, role,
 			m.FullName, m.StudentID, m.Major,
-			m.PhoneNumber, m.PhotoUploadID,
+			m.PhoneNumber, m.Nationality, m.PhotoUploadID,
 		)
 		if err != nil {
 			return "", err
@@ -168,7 +168,7 @@ func GetAllRegistrations() ([]*models.CompregenRegistrationResponse, error) {
 
 	rows, err := database.DB.Query(ctx, `
 		SELECT r.id, r.cabinet_name, r.submitted_at,
-		       m.role, m.full_name, m.student_id, m.major, m.phone_number, m.photo_upload_id
+		       m.role, m.full_name, m.student_id, m.major, m.phone_number, m.nationality, m.photo_upload_id
 		FROM compregen_registrations r
 		JOIN compregen_registration_members m ON m.registration_id = r.id
 		ORDER BY r.submitted_at DESC`)
@@ -182,12 +182,12 @@ func GetAllRegistrations() ([]*models.CompregenRegistrationResponse, error) {
 
 	for rows.Next() {
 		var (
-			id, cabinetName, role, fullName, studentID, major, phone string
+			id, cabinetName, role, fullName, studentID, major, nationality, phone string
 			submittedAt                                               time.Time
 			photoUploadID                                             *string
 		)
 		if err := rows.Scan(&id, &cabinetName, &submittedAt,
-			&role, &fullName, &studentID, &major, &phone, &photoUploadID); err != nil {
+			&role, &fullName, &studentID, &major, &phone, &nationality, &photoUploadID); err != nil {
 			return nil, err
 		}
 
@@ -206,6 +206,7 @@ func GetAllRegistrations() ([]*models.CompregenRegistrationResponse, error) {
 			StudentID:     studentID,
 			Major:         major,
 			PhoneNumber:   phone,
+			Nationality:   nationality,
 			PhotoUploadID: photoUploadID,
 		}
 	}

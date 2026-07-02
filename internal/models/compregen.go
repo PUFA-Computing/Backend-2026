@@ -69,16 +69,17 @@ type CompregenVerifyResponse struct {
 }
 
 type CompregenMemberInput struct {
-	FullName      string `json:"full_name" binding:"required"`
-	StudentID     string `json:"student_id" binding:"required"`
-	Major         string `json:"major" binding:"required"`
-	PhoneNumber   string `json:"phone_number" binding:"required"`
-	PhotoUploadID string `json:"photo_upload_id" binding:"required"`
+    FullName      string `json:"full_name" binding:"required"`
+    StudentID     string `json:"student_id" binding:"required"`
+    Major         string `json:"major" binding:"required"`
+    PhoneNumber   string `json:"phone_number" binding:"required"`
+    Nationality   string `json:"nationality" binding:"required"`
+    PhotoUploadID string `json:"photo_upload_id" binding:"required"`
 }
 
 type CompregenRegisterRequest struct {
 	Token           string                          `json:"token" binding:"required"`
-	CabinetName     string                          `json:"cabinet_name" binding:"required"`
+	CabinetName     string                          `json:"cabinet_name"`
 	ConsentAccepted bool                            `json:"consent_accepted" binding:"required"`
 	Members         map[string]CompregenMemberInput `json:"members" binding:"required"`
 }
@@ -88,6 +89,7 @@ type CompregenMemberResponse struct {
 	StudentID     string  `json:"student_id"`
 	Major         string  `json:"major"`
 	PhoneNumber   string  `json:"phone_number"`
+	Nationality   string  `json:"nationality"`
 	PhotoUploadID *string `json:"photo_upload_id"`
 }
 
