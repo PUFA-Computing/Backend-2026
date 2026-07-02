@@ -10,6 +10,21 @@ import (
 
 // ── Invite Links ───────────────────────────────────────
 
+func GetActiveInviteLink() (*models.CompregenInviteLink, error) {
+    var link models.CompregenInviteLink
+    query := `
+        SELECT id, token, status, created_by, created_at, expires_at, used_at
+        FROM compregen_invite_links
+        WHERE status = 'active'
+        ORDER BY created_at DESC
+        LIMIT 1`
+    err := database.DB.QueryRow(context.Background(), query).Scan(
+        &link.ID, &link.Token, &link.Status, &link.CreatedBy,
+        &link.CreatedAt, &link.ExpiresAt, &link.UsedAt,
+    )
+    return &link, err
+}
+
 func GetInviteLinkByToken(token string) (*models.CompregenInviteLink, error) {
 	var link models.CompregenInviteLink
 	query := `
@@ -49,6 +64,68 @@ func MarkInviteLinkUsed(linkID string) error {
 }
 
 // ── Verify / Rate Limit ────────────────────────────────
+
+func GetAllVerifyAttempts() ([]map[string]interface{}, error) {
+    rows, err := database.DB.Query(context.Background(), `
+        SELECT id, invite_link_id, student_id_attempted, email_attempted, success, attempted_at
+        FROM compregen_verify_attempts
+        ORDER BY attempted_at DESC`)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+
+    var attempts []map[string]interface{}
+    for rows.Next() {
+        var id, linkID, studentID, email string
+        var success bool
+        var attemptedAt time.Time
+        if err := rows.Scan(&id, &linkID, &studentID, &email, &success, &attemptedAt); err != nil {
+            return nil, err
+        }
+        attempts = append(attempts, map[string]interface{}{
+            "id":                   id,
+            "invite_link_id":       linkID,
+            "student_id_attempted": studentID,
+            "email_attempted":      email,
+            "success":              success,
+            "attempted_at":         attemptedAt,
+        })
+    }
+    return attempts, nil
+}
+
+func GetAllEligibleCandidates() ([]*models.CompregenEligibleCandidate, error) {
+    rows, err := database.DB.Query(context.Background(), `
+        SELECT id, student_id, full_name, campus_email, major, created_at
+        FROM compregen_eligible_candidates
+        ORDER BY created_at DESC`)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+
+    var candidates []*models.CompregenEligibleCandidate
+    for rows.Next() {
+        var c models.CompregenEligibleCandidate
+        if err := rows.Scan(&c.ID, &c.StudentID, &c.FullName, &c.CampusEmail, &c.Major, &c.CreatedAt); err != nil {
+            return nil, err
+        }
+        candidates = append(candidates, &c)
+    }
+    return candidates, nil
+}
+
+func AddEligibleCandidate(studentID, fullName, campusEmail, major string) (*models.CompregenEligibleCandidate, error) {
+    var c models.CompregenEligibleCandidate
+    err := database.DB.QueryRow(context.Background(), `
+        INSERT INTO compregen_eligible_candidates (student_id, full_name, campus_email, major)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id, student_id, full_name, campus_email, major, created_at`,
+        studentID, fullName, campusEmail, major,
+    ).Scan(&c.ID, &c.StudentID, &c.FullName, &c.CampusEmail, &c.Major, &c.CreatedAt)
+    return &c, err
+}
 
 func CheckEligibleCandidateByStudentID(studentID string) (bool, error) {
     var exists bool

@@ -6,6 +6,17 @@ import (
 
 // ── DB Models ──────────────────────────────────────────
 
+type CompregenWhitelistResponse struct {
+    Whitelist []*CompregenEligibleCandidate `json:"whitelist"`
+}
+
+type CompregenAddWhitelistRequest struct {
+    StudentID   string `json:"student_id" binding:"required"`
+    FullName    string `json:"full_name" binding:"required"`
+    CampusEmail string `json:"campus_email" binding:"required"`
+    Major       string `json:"major" binding:"required"`
+}
+
 type CompregenEligibleCandidate struct {
 	ID           string    `json:"id"`
 	StudentID    string    `json:"student_id"`

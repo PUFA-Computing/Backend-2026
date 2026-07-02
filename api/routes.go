@@ -301,6 +301,10 @@ func SetupRoutes() *gin.Engine {
 		{
 			compregenAdmin.GET("/registrations", compregenHandlers.GetRegistrations)
 			compregenAdmin.POST("/links", compregenHandlers.GenerateLink)
+			compregenAdmin.GET("/whitelist", compregenHandlers.GetWhitelist)
+			compregenAdmin.POST("/whitelist", compregenHandlers.AddWhitelistMember)
+			compregenAdmin.GET("/attempts", compregenHandlers.GetVerifyAttempts)
+			compregenAdmin.GET("/links/active", compregenHandlers.GetActiveLink)
 		}
 	}
 
