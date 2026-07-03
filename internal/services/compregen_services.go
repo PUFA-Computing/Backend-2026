@@ -57,16 +57,8 @@ func (s *CompregenService) Verify(token, studentID, email string) (*models.Compr
 
 func (s *CompregenService) Register(token, cabinetName string, members map[string]models.CompregenMemberInput) (string, error) {
 	link, err := dbApp.GetInviteLinkByToken(token)
-	if err != nil || link.Status != "active" {
-		return "", errors.New("link_already_used")
-	}
-
-	exists, err := dbApp.RegistrationExistsForLink(link.ID)
 	if err != nil {
-		return "", err
-	}
-	if exists {
-		return "", errors.New("link_already_used")
+		return "", errors.New("invalid_token")
 	}
 
 	// Validate members are whitelisted (VCP2 exempt)
