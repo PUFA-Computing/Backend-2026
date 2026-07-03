@@ -88,7 +88,6 @@ func (s *CompregenService) Register(token, cabinetName string, members map[strin
 		return "", err
 	}
 
-	_ = dbApp.MarkInviteLinkUsed(link.ID)
 	return registrationID, nil
 }
 
