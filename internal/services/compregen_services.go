@@ -69,8 +69,11 @@ func (s *CompregenService) Register(token, cabinetName string, members map[strin
 		return "", errors.New("link_already_used")
 	}
 
-	// Validate all 3 members are whitelisted
+	// Validate members are whitelisted (VCP2 exempt)
 	for role, m := range members {
+		if role == "vcp2" {
+			continue // VCP2 tidak perlu di whitelist
+		}
 		ok, err := dbApp.CheckEligibleCandidateByStudentID(m.StudentID)
 		if err != nil {
 			return "", err
